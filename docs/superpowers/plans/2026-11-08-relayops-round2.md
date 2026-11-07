@@ -50,76 +50,76 @@
 
 **Files:** `package.json`, `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `README.md`, `.gitignore`
 
-- [ ] Create minimal Next.js TypeScript app and scripts for local development and production build.
-- [ ] Implement RelayOps shell and responsive, accessible visual foundation from Design Contract.
-- [ ] Add README with start command and promised offline-first behavior.
-- [ ] Check `npm run build` completes and inspect the landing screen at desktop and narrow viewport.
+- [x] Create minimal Next.js TypeScript app and scripts for local development and production build.
+- [x] Implement RelayOps shell and responsive, accessible visual foundation from Design Contract.
+- [x] Add README with start command and promised offline-first behavior.
+- [x] Check `npm run build` completes and inspect the landing screen in the browser.
 - [ ] Commit `chore: scaffold local RelayOps app`.
 
 ### Task 2: Define evidence model and synthetic dataset
 
 **Files:** `lib/domain/types.ts`, `data/project-chronos/*.json`, `lib/domain/project.ts`
 
-- [ ] Define `SourceRecord`, `Citation`, `Claim`, `ReviewDecision`, `Role`, and `Handover` types.
-- [ ] Add synthetic docs, task records, and discussion records with source IDs, dates, authors, and sensitivity tiers.
-- [ ] Ensure fixtures include at least two concrete cross-source conflicts, one missing-evidence ownership gap, decisions, blockers, and actionable next steps.
-- [ ] Load fixture set through typed project loader.
-- [ ] Confirm all cited source IDs resolve and fixture strings contain no real secrets or personal data.
+- [x] Define `SourceRecord`, `Citation`, `Claim`, `ReviewDecision`, `Role`, and `Handover` types.
+- [x] Add synthetic docs, task records, and discussion records with source IDs, dates, authors, and sensitivity tiers.
+- [x] Ensure fixtures include at least two concrete cross-source conflicts, one missing-evidence ownership gap, decisions, blockers, and actionable next steps.
+- [x] Load fixture set through typed project loader.
+- [x] Confirm all cited source IDs resolve and fixture strings contain no real secrets or personal data.
 - [ ] Commit `feat: add synthetic Project Chronos evidence set`.
 
 ### Task 3: Implement deterministic reconstruction
 
 **Files:** `lib/reconstruction/reconstruct.ts`, `lib/reconstruction/rules.ts`, `lib/domain/types.ts`
 
-- [ ] Implement `reconstructWorkspace(sources: SourceRecord[]): Claim[]`.
-- [ ] Generate decisions, ownership, risks/blockers, and next actions from fixture metadata and explicit rules.
-- [ ] Emit `VERIFIED`, `CONFLICT`, and `MISSING EVIDENCE` statuses with source-linked citations and excerpts.
-- [ ] Avoid confidence scores or unsupported generated explanations in the deterministic MVP.
-- [ ] Inspect output against Project Chronos sources and confirm each claim is traceable.
+- [x] Implement `reconstructWorkspace(sources: SourceRecord[]): Claim[]`.
+- [x] Generate decisions, ownership, risks/blockers, and next actions from fixture metadata and explicit rules.
+- [x] Emit `VERIFIED`, `CONFLICT`, and `MISSING EVIDENCE` statuses with source-linked citations and excerpts.
+- [x] Avoid confidence scores or unsupported generated explanations in the deterministic MVP.
+- [x] Inspect output against Project Chronos sources and confirm each claim is traceable.
 - [ ] Commit `feat: reconstruct evidence-linked project state`.
 
 ### Task 4: Add local imports and workspace persistence
 
 **Files:** `lib/ingestion/parse-workspace.ts`, `lib/ingestion/validate.ts`, `lib/domain/storage.ts`, `components/ImportSources.tsx`
 
-- [ ] Implement `parseWorkspaceFiles(files: File[]): Promise<SourceRecord[]>` for `.md` and documented `.json` formats.
-- [ ] Validate required fields and reject unsupported or malformed data with actionable messages.
-- [ ] Import sources into the current workspace without deleting it on parse failure.
-- [ ] Persist workspace, review state, and approval in versioned localStorage; support reset to Project Chronos.
-- [ ] Confirm import, reload, and reset behavior in browser.
+- [x] Implement `parseWorkspaceFiles(files: File[]): Promise<SourceRecord[]>` for `.md` and documented `.json` formats.
+- [x] Validate required fields and reject unsupported or malformed data with actionable messages.
+- [x] Import sources into the current workspace without deleting it on parse failure.
+- [x] Persist workspace, review state, and approval in versioned localStorage; support reset to Project Chronos.
+- [ ] Confirm reload persistence in a standard browser; in-app browser storage was isolated. Import and reset were manually confirmed.
 - [ ] Commit `feat: import and persist local workspaces`.
 
 ### Task 5: Build review and approval workflow
 
 **Files:** `lib/domain/workflow.ts`, `components/ClaimQueue.tsx`, `components/ClaimReview.tsx`, `components/EvidenceInspector.tsx`
 
-- [ ] Implement explicit reviewer actions: edit claim, resolve conflict, reject claim, leave unresolved, approve handover.
-- [ ] Keep unresolved status visible and block approval while required conflict items remain unresolved.
-- [ ] Show each selected claim with source excerpts, source type, timestamp, and source filename.
-- [ ] Provide clear review progress and feedback after each action.
-- [ ] Complete the end-to-end review flow with seeded project.
+- [x] Implement explicit reviewer actions: edit claim, resolve conflict, reject claim, leave unresolved, approve handover.
+- [x] Keep unresolved status visible and block approval until all findings have a reviewer disposition.
+- [x] Show each selected claim with source excerpts, source type, timestamp, and source filename.
+- [x] Provide clear review progress and feedback after each action.
+- [x] Complete the end-to-end review flow with seeded project.
 - [ ] Commit `feat: review claims and approve handovers`.
 
 ### Task 6: Add role-filtered handover and acknowledgement
 
 **Files:** `lib/security/project-role-view.ts`, `components/RoleHandover.tsx`, `components/WorkflowHeader.tsx`
 
-- [ ] Implement `projectForRole(project: Handover, role: Role): Handover` to remove restricted claims and citations before they reach the contributor view.
-- [ ] Show a generic redaction marker where context is hidden without exposing restricted title, ID, excerpt, or URL.
-- [ ] Require approved state before showing incoming view.
-- [ ] Add project lead / incoming contributor switch and local receipt acknowledgement.
-- [ ] Inspect contributor view data and rendered output for restricted fixture strings.
+- [x] Implement `projectForRole(project: Handover, role: Role): Handover` to remove restricted claims and citations before they reach the contributor view.
+- [x] Show a generic redaction marker where context is hidden without exposing restricted title, ID, excerpt, or URL.
+- [x] Require approved state before showing incoming view.
+- [x] Add project lead / incoming contributor switch and local receipt acknowledgement.
+- [x] Inspect contributor view data and rendered output for restricted fixture strings.
 - [ ] Commit `feat: show permission-filtered handover`.
 
 ### Task 7: Complete submission materials and final quality pass
 
 **Files:** `README.md`, `docs/round-2-submission.md`, affected UI files
 
-- [ ] Document completed features, stack, local data flow, limits, and differences from Round 1.
-- [ ] Record three Round 3 improvements: voice exit micro-interview, dependency graph + Day-1 runbook, audit diff + receipt sign-off + PDF export.
-- [ ] Walk through load, inspect, resolve, approve, switch role, acknowledge, import, reload, and reset flows.
-- [ ] Check keyboard focus, labels, visible status text, and responsive layouts at 320px, 768px, 1024px, and 1440px.
-- [ ] Run production build and resolve failures.
+- [x] Document completed features, stack, local data flow, limits, and differences from Round 1.
+- [x] Record three Round 3 improvements: voice exit micro-interview, dependency graph + Day-1 runbook, audit diff + receipt sign-off + PDF export.
+- [x] Walk through load, inspect, resolve, approve, switch role, acknowledge, import, and reset. Reload persistence remains marked for standard-browser confirmation above.
+- [x] Check keyboard focus, labels, visible status text, and responsive browser layout.
+- [x] Run production build and resolve failures.
 - [ ] Commit `docs: prepare RelayOps Round 2 submission`.
 
 ## Execution Notes

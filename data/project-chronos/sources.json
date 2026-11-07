@@ -1,0 +1,99 @@
+[
+  {
+    "id": "DOC-ARCH-01",
+    "title": "Session storage decision",
+    "kind": "document",
+    "occurredAt": "2026-11-02T10:15:00+05:30",
+    "author": "Platform team",
+    "clearance": 1,
+    "content": "Architecture note: Session storage uses Memcached. This decision predates the November reliability work.",
+    "observations": [
+      { "topic": "session-store", "category": "decision", "statement": "Session storage uses Memcached.", "value": "memcached", "excerpt": "Session storage uses Memcached." }
+    ]
+  },
+  {
+    "id": "PR-142",
+    "title": "Switch session store to Redis",
+    "kind": "repository",
+    "occurredAt": "2026-11-05T16:40:00+05:30",
+    "author": "Platform team",
+    "clearance": 1,
+    "content": "Merged change: switch session store to Redis after Memcached eviction caused lost sessions. The architecture note has not been updated.",
+    "observations": [
+      { "topic": "session-store", "category": "decision", "statement": "Session storage switched to Redis.", "value": "redis", "excerpt": "switch session store to Redis after Memcached eviction caused lost sessions." }
+    ]
+  },
+  {
+    "id": "LIN-89",
+    "title": "Webhook retry queue",
+    "kind": "task",
+    "occurredAt": "2026-11-04T12:00:00+05:30",
+    "author": "Project board",
+    "clearance": 1,
+    "content": "Status: Done. Acceptance: retries are recorded and delivered in order.",
+    "observations": [
+      { "topic": "webhook-retry", "category": "blocker", "statement": "LIN-89 is marked Done.", "value": "done", "excerpt": "Status: Done. Acceptance: retries are recorded and delivered in order." }
+    ]
+  },
+  {
+    "id": "PR-151",
+    "title": "Webhook retry worker",
+    "kind": "repository",
+    "occurredAt": "2026-11-06T09:20:00+05:30",
+    "author": "Core team",
+    "clearance": 1,
+    "content": "Pull request is open. CI retry-order test fails when two deliveries share a timestamp. Review is still required.",
+    "observations": [
+      { "topic": "webhook-retry", "category": "blocker", "statement": "The retry worker remains open; CI has a failing ordering test and review is still required.", "value": "open", "excerpt": "Pull request is open. CI retry-order test fails when two deliveries share a timestamp. Review is still required." }
+    ]
+  },
+  {
+    "id": "GIT-BILLING-14D",
+    "title": "Recent billing module activity",
+    "kind": "repository",
+    "occurredAt": "2026-11-07T17:05:00+05:30",
+    "author": "Repository history",
+    "clearance": 1,
+    "content": "Synthetic activity summary: departing contributor dev-k authored 72% of changes in src/billing/reconcile.ts in the last 14 days. No linked issue or handover note was found.",
+    "observations": [
+      { "topic": "billing-reconcile-owner", "category": "ownership", "statement": "Recent repository history points to dev-k as the primary recent contributor to src/billing/reconcile.ts, but no issue or handover note explains its current state.", "value": "dev-k", "excerpt": "Synthetic activity summary: departing contributor dev-k authored 72% of changes in src/billing/reconcile.ts in the last 14 days. No linked issue or handover note was found.", "evidenceGap": true }
+    ]
+  },
+  {
+    "id": "DOC-DEPLOY-03",
+    "title": "Deployment path",
+    "kind": "document",
+    "occurredAt": "2026-10-30T14:00:00+05:30",
+    "author": "Release team",
+    "clearance": 1,
+    "content": "Release decision: staging deploys run from the release branch. Production approval comes from the on-call project lead.",
+    "observations": [
+      { "topic": "release-path", "category": "decision", "statement": "Staging deploys run from the release branch; the on-call project lead approves production deploys.", "value": "release-branch-lead-approval", "excerpt": "Staging deploys run from the release branch. Production approval comes from the on-call project lead." }
+    ]
+  },
+  {
+    "id": "CHAT-OPS-21",
+    "title": "Nightly importer delay",
+    "kind": "discussion",
+    "occurredAt": "2026-11-06T19:30:00+05:30",
+    "author": "Data platform channel",
+    "clearance": 1,
+    "content": "The nightly importer missed two runs after the vendor rate limit changed. Retry window is set to 30 minutes while the adapter fix is reviewed.",
+    "observations": [
+      { "topic": "importer-rate-limit", "category": "risk", "statement": "Nightly imports missed two runs after the vendor rate limit changed; retry window is temporarily 30 minutes.", "value": "temporary-retry-window", "excerpt": "The nightly importer missed two runs after the vendor rate limit changed. Retry window is set to 30 minutes while the adapter fix is reviewed." },
+      { "topic": "importer-adapter-fix", "category": "next-action", "statement": "Review the adapter fix and confirm the vendor retry window before the next release.", "value": "review-adapter-fix", "excerpt": "Retry window is set to 30 minutes while the adapter fix is reviewed." }
+    ]
+  },
+  {
+    "id": "LEAD-NOTE-02",
+    "title": "Restricted project lead note",
+    "kind": "discussion",
+    "occurredAt": "2026-11-07T11:00:00+05:30",
+    "author": "Project lead",
+    "clearance": 3,
+    "content": "Restricted synthetic note: vendor contract review is still open. Ask the project lead for context before changing the delivery date.",
+    "observations": [
+      { "topic": "vendor-contract", "category": "risk", "statement": "Vendor contract review is open; ask the project lead before changing the delivery date.", "value": "open", "excerpt": "Restricted synthetic note: vendor contract review is still open. Ask the project lead for context before changing the delivery date." }
+    ]
+  }
+]
