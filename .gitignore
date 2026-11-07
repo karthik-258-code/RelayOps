@@ -6,3 +6,5 @@ coverage/
 *.pem
 *.tsbuildinfo
 tmp/
+
+.vercel
