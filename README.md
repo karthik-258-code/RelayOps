@@ -11,6 +11,10 @@ npm run dev
 
 Open <http://localhost:3000>.
 
+## Published demo
+
+The `codex/relayops-round2` branch deploys to GitHub Pages through Actions. The site is built as a static export with the repository subpath `/RelayOps`; local development keeps the normal root path.
+
 ## Demo flow
 
 1. Start at **Review**. Project Chronos loads automatically with synthetic docs, task records, repository notes, and discussion records.

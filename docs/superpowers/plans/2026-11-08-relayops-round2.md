@@ -124,6 +124,6 @@
 
 ## Execution Notes
 
-- Work locally on `codex/relayops-round2`; do not push or deploy during this implementation.
+- Build locally on `codex/relayops-round2`, then push to the existing public RelayOps repository. GitHub Pages publishes the static demo from this branch.
 - Do not add automated tests under current session instruction. Use the listed build and manual workflow checks only.
 - Keep changes scoped to requirements. After local completion, prepare GitHub push and deployment as a separate explicit handoff.
