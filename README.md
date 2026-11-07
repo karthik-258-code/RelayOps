@@ -13,7 +13,7 @@ Open <http://localhost:3000>.
 
 ## Published demo
 
-The `codex/relayops-round2` branch deploys to GitHub Pages through Actions. The site is built as a static export with the repository subpath `/RelayOps`; local development keeps the normal root path.
+Live demo: <https://karthik-258-code.github.io/RelayOps/>. The `codex/relayops-round2` branch deploys to GitHub Pages through Actions. The site is built as a static export with the repository subpath `/RelayOps`; local development keeps the normal root path.
 
 ## Demo flow
 
