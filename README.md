@@ -15,6 +15,10 @@ Open <http://localhost:3000>.
 
 Live demo: <https://karthik-258-code.github.io/RelayOps/>. The `codex/relayops-round2` branch deploys to GitHub Pages through Actions. The site is built as a static export with the repository subpath `/RelayOps`; local development keeps the normal root path.
 
+## Render deployment
+
+`render.yaml` defines a Render static site for the same branch. It builds a root-path static export into `out`, so it does not use the GitHub Pages `/RelayOps` base path. Create or sync the Blueprint in Render to provision the public site.
+
 ## Demo flow
 
 1. Start at **Review**. Project Chronos loads automatically with synthetic docs, task records, repository notes, and discussion records.

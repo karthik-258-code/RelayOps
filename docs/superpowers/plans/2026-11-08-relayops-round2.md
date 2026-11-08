@@ -54,7 +54,7 @@
 - [x] Implement RelayOps shell and responsive, accessible visual foundation from Design Contract.
 - [x] Add README with start command and promised offline-first behavior.
 - [x] Check `npm run build` completes and inspect the landing screen in the browser.
-- [ ] Commit `chore: scaffold local RelayOps app`.
+- [x] Committed in the grouped Round 2 implementation history; see Execution Notes.
 
 ### Task 2: Define evidence model and synthetic dataset
 
@@ -65,7 +65,7 @@
 - [x] Ensure fixtures include at least two concrete cross-source conflicts, one missing-evidence ownership gap, decisions, blockers, and actionable next steps.
 - [x] Load fixture set through typed project loader.
 - [x] Confirm all cited source IDs resolve and fixture strings contain no real secrets or personal data.
-- [ ] Commit `feat: add synthetic Project Chronos evidence set`.
+- [x] Committed in the grouped Round 2 implementation history; see Execution Notes.
 
 ### Task 3: Implement deterministic reconstruction
 
@@ -76,7 +76,7 @@
 - [x] Emit `VERIFIED`, `CONFLICT`, and `MISSING EVIDENCE` statuses with source-linked citations and excerpts.
 - [x] Avoid confidence scores or unsupported generated explanations in the deterministic MVP.
 - [x] Inspect output against Project Chronos sources and confirm each claim is traceable.
-- [ ] Commit `feat: reconstruct evidence-linked project state`.
+- [x] Committed in the grouped Round 2 implementation history; see Execution Notes.
 
 ### Task 4: Add local imports and workspace persistence
 
@@ -87,7 +87,7 @@
 - [x] Import sources into the current workspace without deleting it on parse failure.
 - [x] Persist workspace, review state, and approval in versioned localStorage; support reset to Project Chronos.
 - [ ] Confirm reload persistence in a standard browser; in-app browser storage was isolated. Import and reset were manually confirmed.
-- [ ] Commit `feat: import and persist local workspaces`.
+- [x] Committed in the grouped Round 2 implementation history; see Execution Notes.
 
 ### Task 5: Build review and approval workflow
 
@@ -98,7 +98,7 @@
 - [x] Show each selected claim with source excerpts, source type, timestamp, and source filename.
 - [x] Provide clear review progress and feedback after each action.
 - [x] Complete the end-to-end review flow with seeded project.
-- [ ] Commit `feat: review claims and approve handovers`.
+- [x] Committed in the grouped Round 2 implementation history; see Execution Notes.
 
 ### Task 6: Add role-filtered handover and acknowledgement
 
@@ -109,7 +109,7 @@
 - [x] Require approved state before showing incoming view.
 - [x] Add project lead / incoming contributor switch and local receipt acknowledgement.
 - [x] Inspect contributor view data and rendered output for restricted fixture strings.
-- [ ] Commit `feat: show permission-filtered handover`.
+- [x] Committed in the grouped Round 2 implementation history; see Execution Notes.
 
 ### Task 7: Complete submission materials and final quality pass
 
@@ -120,10 +120,12 @@
 - [x] Walk through load, inspect, resolve, approve, switch role, acknowledge, import, and reset. Reload persistence remains marked for standard-browser confirmation above.
 - [x] Check keyboard focus, labels, visible status text, and responsive browser layout.
 - [x] Run production build and resolve failures.
-- [ ] Commit `docs: prepare RelayOps Round 2 submission`.
+- [x] Committed as grouped implementation and submission updates; see Execution Notes.
 
 ## Execution Notes
 
-- Build locally on `codex/relayops-round2`, then push to the existing public RelayOps repository. GitHub Pages publishes the static demo from this branch.
+- Build locally on `codex/relayops-round2`, then push to the existing public RelayOps repository. GitHub Pages publishes the static demo from this branch; `render.yaml` now defines an additional Render static-site deployment from the same branch.
+- Functional tasks were committed in grouped milestones rather than one commit per numbered task: `7e973f2` (local MVP), `171f9ed` (GitHub Pages), `d097b16` (UI refinement), and `f79e82a` (submission report/docs). The per-task commit checklist above reflects the code being committed, not one-to-one commit messages.
+- Standard-browser reload persistence remains the one Round 2 verification item to confirm.
 - Do not add automated tests under current session instruction. Use the listed build and manual workflow checks only.
 - Keep changes scoped to requirements. After local completion, prepare GitHub push and deployment as a separate explicit handoff.

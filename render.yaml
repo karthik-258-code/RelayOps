@@ -1,0 +1,13 @@
+services:
+  - type: web
+    runtime: static
+    name: relayops-handover
+    branch: codex/relayops-round2
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./out
+    autoDeployTrigger: commit
+    envVars:
+      - key: RENDER_STATIC
+        value: "true"
+      - key: NODE_VERSION
+        value: "22.22.0"
