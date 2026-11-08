@@ -124,8 +124,9 @@
 
 ## Execution Notes
 
-- Build locally on `codex/relayops-round2`, then push to the existing public RelayOps repository. GitHub Pages publishes the static demo from this branch; `render.yaml` now defines an additional Render static-site deployment from the same branch.
+- Build locally on `codex/relayops-round2`, then push to the existing public RelayOps repository. GitHub Pages and Render publish static demos from this branch.
 - Functional tasks were committed in grouped milestones rather than one commit per numbered task: `7e973f2` (local MVP), `171f9ed` (GitHub Pages), `d097b16` (UI refinement), and `f79e82a` (submission report/docs). The per-task commit checklist above reflects the code being committed, not one-to-one commit messages.
 - Standard-browser reload persistence remains the one Round 2 verification item to confirm.
+- Render Blueprint `RelayOps Round 2` created the `relayops-handover` static site from commit `a56f890`; the public URL returned HTTP 200. GitHub Pages also built successfully at this commit.
 - Do not add automated tests under current session instruction. Use the listed build and manual workflow checks only.
-- Keep changes scoped to requirements. After local completion, prepare GitHub push and deployment as a separate explicit handoff.
+- Keep changes scoped to requirements. Reconfirm localStorage persistence across reloads in a standard browser before final submission.

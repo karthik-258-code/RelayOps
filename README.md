@@ -17,7 +17,7 @@ Live demo: <https://karthik-258-code.github.io/RelayOps/>. The `codex/relayops-r
 
 ## Render deployment
 
-`render.yaml` defines a Render static site for the same branch. It builds a root-path static export into `out`, so it does not use the GitHub Pages `/RelayOps` base path. Create or sync the Blueprint in Render to provision the public site.
+Live demo: <https://relayops-handover.onrender.com/>. `render.yaml` defines a Render static site for the same branch. It builds a root-path static export into `out`, so it does not use the GitHub Pages `/RelayOps` base path. Render auto-deploys commits to `codex/relayops-round2`.
 
 ## Demo flow
 

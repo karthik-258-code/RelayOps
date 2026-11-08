@@ -66,13 +66,14 @@ Round 2 keeps the evidence model, source traceability, conflict queue, human app
 - Some privacy-isolated browser contexts may clear local storage between page loads.
 - Markdown extraction only recognises documented headings and bullets. Unstructured text is retained as a source and marked as an evidence gap.
 - JSON observations and excerpts are supplied by the user. RelayOps validates shape, but it cannot independently verify that imported excerpts match external records.
-- There is no live GitHub connector, AI extraction, shared server persistence, PDF handover export, or immutable audit service. The static demo is publicly hosted on GitHub Pages.
+- There is no live GitHub connector, AI extraction, shared server persistence, PDF handover export, or immutable audit service. The static demo is publicly hosted on Render and GitHub Pages.
 
 ## Local verification
 
 - `npm run typecheck` — passed.
 - `npm run build` — passed; route `/` prerendered as a static page.
-- GitHub Actions deployment — passed at commit `6ab8171`; the public URL returned HTTP 200.
+- GitHub Actions deployment — passed at commit `a56f890`; the public URL returned HTTP 200.
+- Render static-site deployment — passed from the Render Blueprint at commit `a56f890`; `https://relayops-handover.onrender.com/` returned HTTP 200.
 - Manual browser walkthrough — resolved both sample conflicts, kept the ownership gap visible, reviewed all findings, approved the snapshot, verified contributor redaction and project-lead access, acknowledged receipt, imported the example Markdown source, and reset to the sample.
 - Browser persistence — app uses `localStorage`; this in-app browser cleared state on reload, so reload persistence still needs confirmation in a standard browser before submission.
 
@@ -85,4 +86,4 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-Live demo: <https://karthik-258-code.github.io/RelayOps/>. Source: <https://github.com/karthik-258-code/RelayOps/tree/codex/relayops-round2>.
+Live demo: <https://relayops-handover.onrender.com/> (Render) and <https://karthik-258-code.github.io/RelayOps/> (GitHub Pages). Source: <https://github.com/karthik-258-code/RelayOps/tree/codex/relayops-round2>.
