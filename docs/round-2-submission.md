@@ -1,89 +1,85 @@
-# RelayOps — Round 2 Project Report
+# RelayOps — Round 2 Build Report
 
 ## Project summary
 
-RelayOps turns authorised project records into an evidence-linked handover that an incoming teammate can use to continue work. The MVP demonstrates source intake, deterministic reconstruction, evidence review, human approval, role-filtered sharing, and receipt acknowledgement.
+RelayOps turns authorised project records into an evidence-backed employee handover. Project records are imported, privacy-filtered, stored as source passages, reconstructed into findings, and tied to exact source quotations. Contradictions and missing evidence stay visible. A human reviewer makes the decision; a project lead approves a versioned snapshot before an incoming contributor can see it.
 
-The primary demo uses Project Chronos, a synthetic project workspace with deliberate documentation drift, a task/repository disagreement, an undocumented code ownership gap, operational risks, next actions, and a lead-only note.
+The ready-to-use Project Chronos workspace contains synthetic records. A local demo can run without user-provided API credentials. Gemini extraction and private-repository import require keys and are optional integrations.
 
 ## Completed features
 
-- Project Chronos loads on first visit; no login, setup credentials, or walkthrough required.
-- Local Markdown and RelayOps JSON imports with file count, size, extension, shape, and duplicate-ID checks.
-- Structured findings for decisions, ownership, blockers, risks, and next actions.
-- Evidence excerpts with source ID, type, author, and date.
-- Visible `VERIFIED`, `CONFLICT`, and `MISSING EVIDENCE` statuses.
-- Human review actions to confirm, edit, resolve a conflict, accept an evidence gap, reject a claim, or reopen review.
-- Approval gate that blocks the incoming view until every finding has a reviewer decision.
-- Contributor and project lead handover views; lead-only claims and citations are filtered from the contributor view before rendering.
-- Receipt acknowledgement, browser-local persistence, and reset-to-sample action.
-- Responsive layout, keyboard-accessible controls, visible focus, text status labels, and reduced-motion handling.
-- Local run and import instructions in README.
+- Public product homepage and a working sign-in screen.
+- Local Supabase Auth sample accounts for project lead and incoming contributor.
+- Five-stage workflow: Connect, Reconstruct, Verify, Review, and Handover.
+- Project Chronos synthetic workspace persisted in PostgreSQL.
+- Import Markdown and RelayOps JSON files with structural validation, file count and size limits, and duplicate checks.
+- Import a public GitHub README, root/docs Markdown files, recent commits and selected commit/PR diffs, issues/comments, pull requests/reviews/conversation comments/code review comments; optional private-repository token is request-only. Pagination and the returned batch are bounded (50 records maximum).
+- Redact common API credentials, bearer tokens, private keys, emails, and phone numbers before storage, using Presidio when available and deterministic scanner fallback otherwise.
+- Store sources, passages, claims, citations, graph entities/edges, review decisions, approval snapshots, and receipt acknowledgements in PostgreSQL with pgvector support.
+- Reconstruct supported facts deterministically; optional Gemini/LangGraph extraction can produce structured facts, embeddings, and graph edges when a valid key/quota is configured.
+- Validate every persisted citation against the exact stored passage and quoted text. Model output cannot approve or resolve a disagreement.
+- Show disagreements and evidence gaps explicitly in Verify.
+- Search embedded source passages by natural-language query with pgvector cosine similarity; the search RPC runs as the signed-in user so project membership and clearance RLS filter matches before content is returned.
+- Human review actions use optimistic claim versions; any changed claim needs a new decision. A heartbeat-backed project lock prevents source import or extraction from racing with review and approval.
+- A lead approval gate blocks incomplete handovers. Versioned snapshots are immutable and repeated approval of one revision returns its existing snapshot.
+- Contributors receive only an approved snapshot and only data at their clearance level; source text, citations, and related evidence are filtered server-side and protected by RLS.
+- Incoming contributor can acknowledge the specific approved snapshot.
+- Local app can be used end to end with the included synthetic demo; no external account is required for this local walkthrough.
 
-## Technology and implementation
+## Technology and implementation details
 
-- **Framework:** Next.js 16.4.5 App Router, React 19.3.1, TypeScript 5.9.3.
-- **Inputs:** Bundled synthetic JSON fixture plus browser File API for Markdown and RelayOps JSON.
-- **Reconstruction:** Typed deterministic grouping by topic and value. Divergent values produce `CONFLICT`; explicit evidence gaps produce `MISSING EVIDENCE`; aligned records produce `VERIFIED`.
-- **Review:** Reviewer dispositions and approved state are stored with workspace data in versioned browser localStorage.
-- **Role view:** A typed role projection filters claims and citations by clearance before handover components receive them.
-- **Network services:** None required to run the main workflow. No LLM or live GitHub integration is included in Round 2.
+- **Web application:** Next.js 16.4.5 App Router, React 19.3.1, TypeScript 5.9.3. Server-rendered routes protect the workspace; server route handlers validate inputs with Zod and use verified Supabase sessions.
+- **Database and identity:** local Supabase stack, PostgreSQL 17, Supabase Auth, pgvector, SQL migrations, seeded synthetic users and data. RLS enforces project membership and clearance; server APIs apply matching checks.
+- **Python extractor:** FastAPI and Pydantic service with LangGraph orchestration. Presidio and deterministic scanners redact content before model use. Gemini produces structured extraction and embeddings when configured.
+- **GitHub ingestion:** Octokit makes paginated, bounded requests for README/docs, commits and selected file diffs, issues and comments, pull requests and changed-file diffs, reviews, conversation comments, and code review comments. Tokens are used for the request and are not persisted.
+- **Evidence integrity:** passages are persisted before claims. Citation validation checks passage membership, exact quote containment, and Unicode code-point offsets consistently across Python, TypeScript, and PostgreSQL. Query embeddings and 768-dimensional passage embeddings are compared by a bounded pgvector cosine-similarity RPC. The RPC uses `SECURITY INVOKER`, and its results remain constrained by project/source/passage RLS even if a caller requests a higher clearance. Citationless imported findings become missing evidence. Version checks prevent stale decisions; heartbeat-backed mutation locks and database write-fence triggers serialize ingestion/extraction with review/approval and reject stale mutation tokens. Approval writes an immutable versioned snapshot that is the contributor-facing source of truth.
+- **Privacy boundary:** imported content is treated as untrusted data, model prompts prohibit following source instructions, and generated findings require locally verified citations. Models never make approval decisions.
 
 ## Main data flow
 
 ```text
-Project Chronos JSON / local files
-                ↓
-        SourceRecord validation
-                ↓
-   Deterministic topic reconstruction
-                ↓
-  Claim + citation + evidence status
-                ↓
-      Human decision and approval
-                ↓
-   Role-filtered continuation plan
-                ↓
-       Recipient acknowledgement
+Markdown / RelayOps JSON / GitHub records
+  -> validate and redact
+  -> persist sources and exact passages
+  -> deterministic reconstruction or optional Gemini/LangGraph extraction
+  -> verify citations and preserve conflicts
+  -> reviewer decisions and lead approval
+  -> versioned approved snapshot
+  -> clearance-filtered incoming view and receipt acknowledgement
 ```
 
-## Changes from the Round 1 plan
+## Changes from the Round 1 proposal
 
-The Round 1 proposal described live GitHub ingestion, Supabase/PostgreSQL, vector search, LLM-assisted extraction, and orchestration. Round 2 narrows the implementation to local synthetic and file-based sources with deterministic reconstruction. This makes the full judge workflow work without private OAuth credentials, hosted storage, or API keys.
+The initial Round 2 build temporarily replaced the planned database, server-side access, GitHub ingestion, vector/graph storage, and LLM extractor with browser-local deterministic logic. That did not meet the Round 1 plan. This build restores the planned architecture: Supabase/PostgreSQL and RLS, server-backed persistence, GitHub imports, a privacy-filtering FastAPI/LangGraph Gemini extractor, vector/temporal graph data, and human approval. A deterministic path remains as a no-key baseline for judges; it is not presented as a substitute for the planned AI path. General-purpose workspace creation and team invitations are not implemented in Round 2.
 
-Round 2 keeps the evidence model, source traceability, conflict queue, human approval, role-aware handover, and receipt acknowledgement. The broader integrations and LLM reasoning were not implemented.
+## Known limitations / what does not work yet
 
-## Three Round 3 improvements
+- Gemini extraction, query embeddings, and semantic retrieval have not been exercised against a user-owned key and quota. The Verify-stage search requires `GEMINI_API_KEY` and passages embedded through Gemini extraction; without the key, deterministic structured imports and human review work, while semantic search remains unavailable with an explicit setup message.
+- Private GitHub repository import requires a read-only fine-grained token. The import is bounded to 50 recent records, selected diffs, and root/docs Markdown; it does not mirror the full repository or watch for later changes.
+- Round 2 is running locally. The old GitHub Pages/static export cannot run the protected APIs or keep server secrets. A public judge link requires a server-backed Render deployment and a hosted Supabase project, with production environment variables and authentication configuration.
+- Only the seeded Project Chronos workspace and local demo accounts are supplied. Arbitrary workspaces and invitations are not included.
+- Presidio requires the extractor service; when it is unavailable, the API reports that it is using the deterministic Node redaction fallback.
+- An interrupted source/extraction request keeps approval blocked until its 15-minute mutation lease expires; retry the source import or extraction to recover and reconcile the project before reviewing.
+- No known failure was observed in the local seeded database, extraction validation unit tests, TypeScript check, or lead login/workspace smoke test at the time of writing. Deployment and Gemini-key operation are not verified.
 
-1. **Voice exit micro-interview:** record a short answer to a targeted evidence-gap prompt, transcribe it, and attach timestamped testimony as a cited source.
-2. **Dependency graph and Day-1 runbook:** visualize blocker relationships and produce an interactive first-week checklist.
-3. **Audit and export:** show AI/source-to-human edit diffs, record recipient sign-off, and export the approved handover as PDF.
+## Three planned Round 3 improvements
 
-## Known limitations
+1. **Voice exit micro-interview:** collect a departing teammate’s answer to a specific evidence gap, timestamp and attach the response as a source, then require human review before it enters an approved handover.
+2. **Dependency graph and Day-1 runbook:** visualize blocker/task dependencies and turn approved dependencies and next actions into an interactive first-week checklist for the incoming teammate.
+3. **Tamper-evident audit, version diff, and receipt export:** record source-to-decision changes in a verifiable event history, tie recipient sign-off to the approved snapshot, and export the handover as a PDF.
 
-- Role selection is a client-side demonstration, not a security boundary. The sample contains only synthetic data. Do not use confidential data.
-- Browser-local persistence is per device and browser; there is no shared account, server database, or collaboration.
-- Some privacy-isolated browser contexts may clear local storage between page loads.
-- Markdown extraction only recognises documented headings and bullets. Unstructured text is retained as a source and marked as an evidence gap.
-- JSON observations and excerpts are supplied by the user. RelayOps validates shape, but it cannot independently verify that imported excerpts match external records.
-- There is no live GitHub connector, AI extraction, shared server persistence, PDF handover export, or immutable audit service. The static demo is publicly hosted on Render and GitHub Pages.
+## Local judge walkthrough
 
-## Local verification
+1. Start Docker Desktop, run `npx supabase start`, then `npx supabase db reset`.
+2. Run `./scripts/setup-local-env.ps1` once to write local-only settings to `.env.local`.
+3. Start the extractor in one terminal with `./services/extractor/scripts/start.ps1` and the web app in another with `npm run dev`.
+4. Open <http://localhost:3000>, choose **Open workspace**, and sign in as `lead@relayops.local` with password `RelayOpsDemo!2026`.
+5. Connect/import records, inspect Reconstruct and Verify, resolve or accept evidence statuses in Review, and approve the project.
+6. Sign out; sign in as `contributor@relayops.local` with the same local demo password to see the clearance-filtered approved snapshot and acknowledge receipt.
+7. Optional: configure `GEMINI_API_KEY` in ignored `.env.local`, restart both services, and run Gemini extraction from Reconstruct. Optional: import a public GitHub repository without a token.
 
-- `npm run typecheck` — passed.
-- `npm run build` — passed; route `/` prerendered as a static page.
-- GitHub Actions deployment — passed at commit `a56f890`; the public URL returned HTTP 200.
-- Render static-site deployment — passed from the Render Blueprint at commit `a56f890`; `https://relayops-handover.onrender.com/` returned HTTP 200.
-- Manual browser walkthrough — resolved both sample conflicts, kept the ownership gap visible, reviewed all findings, approved the snapshot, verified contributor redaction and project-lead access, acknowledged receipt, imported the example Markdown source, and reset to the sample.
-- Browser persistence — app uses `localStorage`; this in-app browser cleared state on reload, so reload persistence still needs confirmation in a standard browser before submission.
+## Submission links and current status
 
-## Run
-
-```bash
-npm install
-npm run dev
-```
-
-Open <http://localhost:3000>.
-
-Live demo: <https://relayops-handover.onrender.com/> (Render) and <https://karthik-258-code.github.io/RelayOps/> (GitHub Pages). Source: <https://github.com/karthik-258-code/RelayOps/tree/codex/relayops-round2>.
+- Working local app: <http://localhost:3000> (available only while local services are running).
+- Source repository: <https://github.com/karthik-258-code/RelayOps/tree/codex/relayops-round2>.
+- Public judge link: not deployed yet. Do not submit the former static GitHub Pages URL as the Round 2 application; it cannot execute this server-backed build.

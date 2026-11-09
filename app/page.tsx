@@ -1,3 +1,5 @@
-import { RelayOpsApp } from "@/components/RelayOpsApp";
+import { HomePage } from "@/components/HomePage";
 
-export default function Home() { return <RelayOpsApp />; }
+export default function Home() {
+  return <HomePage />;
+}

@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RelayOps — Project handover",
-  description: "Evidence-linked project handovers with human review.",
+  title: "RelayOps — Leave the work. Keep the context.",
+  description: "Create source-linked project handovers with visible uncertainty and human approval.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   );

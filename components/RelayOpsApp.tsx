@@ -1,102 +1,157 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ClaimQueue } from "./ClaimQueue";
 import { ClaimReview } from "./ClaimReview";
 import { EvidenceInspector } from "./EvidenceInspector";
 import { Icon } from "./icons";
 import { ImportSources } from "./ImportSources";
+import { GitHubImport } from "./GitHubImport";
 import { RoleHandover } from "./RoleHandover";
 import { WorkflowHeader } from "./WorkflowHeader";
-import type { ClaimCategory, ClaimReview as ClaimReviewData, HandoverState, Role, SourceRecord } from "@/lib/domain/types";
-import { projectChronosSources } from "@/lib/domain/project";
-import { browserStorageAvailable, clearSavedWorkspace, readSavedWorkspace, saveWorkspace } from "@/lib/domain/storage";
-import { createInitialReviews, canApprove, pendingReviewCount } from "@/lib/domain/workflow";
-import { reconstructWorkspace } from "@/lib/reconstruction/reconstruct";
+import { SignOutButton } from "./SignOutButton";
+import { ReconstructView, VerifyView } from "./WorkspaceStageViews";
+import type { ClaimCategory, HandoverState, Role, SourceRecord } from "@/lib/domain/types";
+import { canApprove, pendingReviewCount } from "@/lib/domain/workflow";
 import { projectForRole } from "@/lib/security/project-role-view";
 
-function createDemoState(): HandoverState {
-  const claims = reconstructWorkspace(projectChronosSources);
-  return { schemaVersion: 1, sources: projectChronosSources, claims, reviews: createInitialReviews(claims), importedNames: [] };
-}
+const emptyState: HandoverState = { schemaVersion: 1, sources: [], claims: [], reviews: {}, importedNames: [] };
 
 const statusLabels = ["VERIFIED", "CONFLICT", "MISSING EVIDENCE"] as const;
 
-export function RelayOpsApp() {
-  const [project, setProject] = useState<HandoverState>(createDemoState);
-  const [selectedId, setSelectedId] = useState("claim-session-store");
+export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: string; accessRole: 'lead' | 'reviewer' | 'contributor'; clearance: 1 | 2 | 3 }) {
+  const [project, setProject] = useState<HandoverState>(emptyState);
+  const [projectName, setProjectName] = useState('Project Chronos');
+  const [selectedId, setSelectedId] = useState("");
   const [filter, setFilter] = useState<ClaimCategory | "all">("all");
-  const [role, setRole] = useState<Role>("contributor");
-  const [activeStage, setActiveStage] = useState(3);
+  const [role, setRole] = useState<Role>(accessRole === 'lead' ? 'project-lead' : 'contributor');
+  const [activeStage, setActiveStage] = useState(0);
   const [ready, setReady] = useState(false);
-  const [storageAvailable, setStorageAvailable] = useState(true);
   const [storageWarning, setStorageWarning] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
+  const [claimVersions, setClaimVersions] = useState<Record<string, number>>({});
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
+  const [handoverReady, setHandoverReady] = useState(false);
+  const [extractionMode, setExtractionMode] = useState<'gemini' | 'deterministic'>('deterministic');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const available = browserStorageAvailable();
-    setStorageAvailable(available);
-    const saved = available ? readSavedWorkspace() : null;
-    if (saved) {
-      setProject(saved);
-      if (saved.claims[0]) setSelectedId(saved.claims[0].id);
-      setActiveStage(saved.approvedAt ? 4 : 3);
-    }
-    if (!available) setStorageWarning("This browser blocks local storage. Changes will last only while this tab stays open.");
-    setReady(true);
-  }, []);
+    void refreshWorkspace(true);
+    // The project id is fixed for this signed-in workspace session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
-  useEffect(() => {
-    if (ready && storageAvailable && !saveWorkspace(project)) {
-      setStorageAvailable(false);
-      setStorageWarning("This browser cannot save workspace data. Changes will last only while this tab stays open.");
+  async function refreshWorkspace(firstLoad = false) {
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/workspace`, { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Could not load this project.');
+      setProject(payload.state as HandoverState);
+      setProjectName(payload.project.name as string);
+      setClaimVersions(payload.claimVersions as Record<string, number>);
+      setSnapshotId(payload.snapshotId as string | null);
+      setHandoverReady(Boolean(payload.handoverReady));
+      setExtractionMode(payload.extractionMode === 'gemini' ? 'gemini' : 'deterministic');
+      if (firstLoad) {
+        setSelectedId(payload.state.claims[0]?.id ?? '');
+        setActiveStage(accessRole === 'contributor' ? 4 : 0);
+      }
+      setStorageWarning('');
+      setReady(true);
+    } catch (caught) {
+      setStorageWarning(caught instanceof Error ? caught.message : 'Could not load the local project.');
+      setReady(true);
     }
-  }, [project, ready, storageAvailable]);
+  }
 
   const selectedClaim = project.claims.find((claim) => claim.id === selectedId) ?? project.claims[0] ?? null;
+  const conflicts = project.claims.filter((claim) => claim.status === "CONFLICT");
+  const evidenceGaps = project.claims.filter((claim) => claim.status === "MISSING EVIDENCE");
   const pending = pendingReviewCount(project.claims, project.reviews);
   const roleView = projectForRole(project, role);
   const counts = Object.fromEntries(statusLabels.map((status) => [status, project.claims.filter((claim) => claim.status === status).length])) as Record<typeof statusLabels[number], number>;
 
-  function importSources(newSources: SourceRecord[], names: string[]) {
-    const currentIds = new Set(project.sources.map((source) => source.id));
-    const duplicate = newSources.find((source) => currentIds.has(source.id));
-    if (duplicate) throw new Error(`Source ID “${duplicate.id}” already exists. Change the ID in the file and retry.`);
-    const sources = [...project.sources, ...newSources];
-    const claims = reconstructWorkspace(sources);
-    setProject({ schemaVersion: 1, sources, claims, reviews: createInitialReviews(claims), importedNames: [...project.importedNames, ...names] });
-    setSelectedId(claims[0]?.id ?? "");
-    setFilter("all");
-    setActiveStage(3);
+  async function importSources(newSources: SourceRecord[], names: string[]) {
+    if (accessRole === 'contributor') throw new Error('A project lead or reviewer must connect sources.');
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sources: newSources, names }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Could not add those records.');
+      await refreshWorkspace();
+      setFilter('all');
+      setActiveStage(1);
+      setStorageNotice(payload.message ?? `${payload.imported} sources added and checked.`);
+    } finally { setBusy(false); }
   }
 
-  function approve() {
-    if (!canApprove(project)) return;
-    const approvedAt = new Date().toISOString();
-    setProject((current) => ({ ...current, approvedAt, acknowledgedAt: undefined }));
-    setRole("contributor");
-    setActiveStage(4);
+  async function approve() {
+    if (!canApprove(project) || accessRole !== 'lead') return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/approve`, { method: 'POST' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Could not approve the handover.');
+      await refreshWorkspace();
+      setRole('contributor');
+      setActiveStage(4);
+      setStorageNotice('Approved snapshot saved to the project record.');
+    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Approval failed.'); }
+    finally { setBusy(false); }
   }
 
-  function resetDemo() {
-    const confirmed = window.confirm("Reset this workspace to Project Chronos? Imported files and reviewer decisions will be removed from this browser.");
-    if (!confirmed) return;
-    clearSavedWorkspace();
-    setProject(createDemoState());
-    setSelectedId("claim-session-store");
-    setFilter("all");
-    setRole("contributor");
-    setActiveStage(3);
-    setStorageNotice("Workspace reset to the synthetic Project Chronos sample.");
+  async function recordDecision(id: string, disposition: import('@/lib/domain/types').ReviewDisposition, editedStatement?: string) {
+    if (accessRole === 'contributor') return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/reviews`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claimId: id, expectedVersion: claimVersions[id], disposition, editedStatement }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Could not save this review decision.');
+      await refreshWorkspace();
+      if (disposition === 'pending') setActiveStage(3);
+    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Review decision failed.'); }
+    finally { setBusy(false); }
   }
 
-  function setReview(id: string, review: ClaimReviewData) {
-    setProject((current) => ({ ...current, approvedAt: undefined, acknowledgedAt: undefined, reviews: { ...current.reviews, [id]: review } }));
+  async function acknowledge() {
+    if (!snapshotId) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/receipts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotId }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Could not save receipt.');
+      await refreshWorkspace();
+    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Receipt save failed.'); }
+    finally { setBusy(false); }
   }
+
+  async function runExtraction() {
+    if (accessRole === 'contributor' || !project.importedNames.length) return;
+    setBusy(true);
+    setStorageNotice('Checking imported passages and exact source quotes…');
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/extract`, { method: 'POST' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Gemini extraction could not run.');
+      await refreshWorkspace();
+      setStorageNotice(`${payload.message}${payload.notices?.length ? ` ${payload.notices.join(' ')}` : ''}`);
+    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Gemini extraction failed.'); }
+    finally { setBusy(false); }
+  }
+
+  function resetDemo() { void refreshWorkspace(); setStorageNotice('Reloaded the saved project from PostgreSQL.'); }
 
   function handleStageChange(stage: number) {
+    if (accessRole === 'contributor' && !handoverReady) {
+      setStorageNotice('The project lead has not published this handover yet.');
+      setActiveStage(4);
+      return;
+    }
     if (stage === 4 && !project.approvedAt) {
-      setStorageNotice("Review every finding and approve the handover before opening the incoming view.");
+      setStorageNotice(pending
+        ? `Handover is locked. Review all ${pending} remaining finding${pending === 1 ? "" : "s"}, then approve the handover to open the incoming view.`
+        : "Handover is locked until you approve the completed review. Approve the handover to open the incoming view.");
       setActiveStage(3);
       return;
     }
@@ -104,54 +159,54 @@ export function RelayOpsApp() {
     setActiveStage(stage);
   }
 
+  if (!ready) return <main className="workspace-loading"><span className="online-dot" /><p>Opening the saved project…</p></main>;
   return <div className="app-shell">
     <header className="topbar">
-      <a className="brand-lockup" href="#top" aria-label="RelayOps home"><span className="brand-mark">R</span><span>Relay<span className="brand-light">Ops</span></span></a>
-      <div className="topbar-right"><span className="workspace-label"><span className="online-dot" />Local workspace</span>
-        {project.approvedAt && <label className="role-select-label">View as <select aria-label="Handover role" value={role} onChange={(event) => setRole(event.target.value as Role)}><option value="contributor">Incoming contributor</option><option value="project-lead">Project lead</option></select></label>}
-        <button className="icon-button" type="button" onClick={resetDemo} aria-label="Reset workspace to sample" title="Reset to sample"><Icon name="refresh" /></button>
+      <Link className="brand-lockup" href="/" aria-label="RelayOps home"><span className="brand-mark">R</span><span>Relay<span className="brand-light">Ops</span></span></Link>
+      <div className="topbar-right"><Link className="workspace-home-link" href="/">Home</Link><span className="workspace-label"><span className="online-dot" />Local workspace · Tier {clearance}</span><SignOutButton />
+        {activeStage === 4 && project.approvedAt && <div className="role-control">
+          <span className="role-control-label">View as</span>
+          <fieldset className="role-switch">
+            <legend className="visually-hidden">Handover role</legend>
+            <label className={`role-option ${role === "contributor" ? "selected" : ""}`}><input type="radio" name="handover-role" value="contributor" checked={role === "contributor"} onChange={() => setRole("contributor")} /><span>Incoming contributor</span></label>
+            {accessRole === 'lead' && <label className={`role-option ${role === "project-lead" ? "selected" : ""}`}><input type="radio" name="handover-role" value="project-lead" checked={role === "project-lead"} onChange={() => setRole("project-lead")} /><span>Project lead</span></label>}
+          </fieldset>
+        </div>}
+        <button className="icon-button" type="button" onClick={resetDemo} aria-label="Reload saved workspace" title="Reload saved workspace" disabled={busy}><Icon name="refresh" /></button>
       </div>
     </header>
     <main id="top" className="page-wrap">
       <WorkflowHeader project={project} activeStage={activeStage} onStageChange={handleStageChange} />
-      {!storageAvailable && <p className="notice-line storage-warning" role="status">{storageWarning || "Browser storage is unavailable. Changes stay in this tab only."}</p>}
-      {storageNotice && <p className="notice-line" role="status">{storageNotice}</p>}
-      {activeStage === 0 ? <section className="connect-view">
-        <div className="connect-intro"><div><p className="panel-kicker">Stage 01 · Connect</p><h2>Choose authorised project sources</h2><p>Start with the synthetic Project Chronos workspace, or add local Markdown and RelayOps JSON records.</p></div><ImportSources onImport={importSources} /></div>
-        <div className="source-safety"><Icon name="lock" /><p><strong>Use synthetic, public, or permissioned material.</strong> This demo stores imported files in this browser. Do not add confidential data.</p></div>
-        <div className="source-table-wrap"><div className="section-title-row"><h3>Connected sources</h3><span>{project.sources.length} records</span></div><div className="source-table" role="table" aria-label="Connected project sources"><div className="source-table-header" role="row"><span role="columnheader">Source</span><span role="columnheader">Type</span><span role="columnheader">Updated</span><span role="columnheader">Access</span></div>
-          {project.sources.map((source) => <div className="source-table-row" role="row" key={source.id}><div role="cell"><span className="file-icon"><Icon name="file" /></span><span><strong>{source.title}</strong><small className="mono">{source.id}</small></span></div><span role="cell">{source.kind}</span><time role="cell" dateTime={source.occurredAt}>{new Date(source.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</time><span role="cell" className={`tier-label tier-${source.clearance}`}>Tier {source.clearance}</span></div>)}
-        </div></div>
-      </section> : activeStage === 4 && project.approvedAt ? <>
-        {roleView.restrictedCount > 0 && role === "contributor" && <div className="redaction-notice"><Icon name="lock" /><span>{roleView.restrictedCount} item{roleView.restrictedCount === 1 ? " is" : "s are"} restricted for this role. Ask your project lead for access.</span></div>}
-        <RoleHandover claims={roleView.claims} reviews={project.reviews} role={role} acknowledgedAt={project.acknowledgedAt} onAcknowledge={() => setProject((current) => ({ ...current, acknowledgedAt: new Date().toISOString() }))} />
-      </> : <>
-        {activeStage === 1 && <div className="stage-context"><span>Stage 02 · Reconstruct</span><p>RelayOps groups project records into decisions, ownership, blockers, risks, and next actions.</p></div>}
-        {activeStage === 2 && <div className="stage-context"><span>Stage 03 · Verify</span><p>Compare source excerpts. Conflicts and evidence gaps stay visible until a reviewer decides.</p></div>}
-        {activeStage === 3 && <div className="stage-context"><span>Stage 04 · Review</span><p>Confirm supported findings, resolve disagreements, or keep uncertainty visible.</p></div>}
-        <div className="summary-strip" aria-label="Workspace summary">
-          <div className="summary-item"><strong>{project.sources.length}</strong><span>Sources connected</span></div>
-          <div className="summary-item"><strong>{project.claims.length}</strong><span>Project findings</span></div>
-          <div className="summary-item summary-attention"><strong>{counts.CONFLICT}</strong><span>Conflicts</span></div>
-          <div className="summary-item summary-attention"><strong>{counts["MISSING EVIDENCE"]}</strong><span>Evidence gaps</span></div>
-          <div className="summary-review"><Icon name="clock" /><span>{pending ? `${pending} findings need a decision` : "All findings reviewed"}</span></div>
+      {storageWarning && <p className="notice-line storage-warning" role="status">{storageWarning}</p>}
+      {storageNotice && <p className="notice-line" role="status" aria-live="polite">{storageNotice}</p>}
+      {accessRole === 'contributor' && !handoverReady ? <section className="incoming-waiting"><span className="incoming-waiting-mark"><Icon name="lock" /></span><p className="panel-kicker">HANDOVER NOT PUBLISHED</p><h2>Your project context is being reviewed.</h2><p>The project lead will make the approved records available here once each finding has a human decision.</p><button type="button" className="button button-secondary" onClick={() => void refreshWorkspace()} disabled={busy}>Check for an update <Icon name="refresh" /></button></section>
+      : activeStage === 0 ? <section className="connect-view">
+        <div className="stage-page-heading connect-page-heading"><div><h2>Bring the project records together</h2><p>Start with the synthetic Project Chronos sample or add local Markdown and RelayOps JSON files you’re authorised to use.</p></div>{accessRole === 'contributor' ? <span className="workspace-label">Source connections need a reviewer</span> : <ImportSources onImport={importSources} />}</div>
+        <div className="connect-content"><GitHubImport projectId={projectId} onImport={importSources} /><div className="source-safety"><Icon name="lock" /><p><strong>Private by default.</strong> Source content is redacted for common credentials and contact details before storage. Only authorised project material should be imported.</p></div>
+          <details className="connect-source-list"><summary><span>Connected sources</span><span>{project.sources.length} records</span></summary><div className="source-table-wrap"><div className="source-table" role="table" aria-label="Connected project sources"><div className="source-table-header" role="row"><span role="columnheader">Source</span><span role="columnheader">Type</span><span role="columnheader">Updated</span><span role="columnheader">Access</span></div>
+            {project.sources.map((source) => <div className="source-table-row" role="row" key={source.id}><div role="cell"><span className="file-icon"><Icon name="file" /></span><span><strong>{source.title}</strong><small className="mono">{source.id}</small></span></div><span role="cell">{source.kind}</span><time role="cell" dateTime={source.occurredAt}>{new Date(source.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</time><span role="cell" className={`tier-label tier-${source.clearance}`}>Tier {source.clearance}</span></div>)}
+          </div></div></details>
         </div>
-        <div className="workspace-actions"><div><span className="source-set-name"><Icon name="layers" />Project Chronos</span><span className="source-set-meta">Synthetic multi-source workspace{project.importedNames.length ? ` · ${project.importedNames.length} imported file${project.importedNames.length === 1 ? "" : "s"}` : ""}</span></div><ImportSources onImport={importSources} /></div>
-        <div className="privacy-note"><Icon name="lock" /><span>Local-only demo. Import only synthetic, public, or authorised records. <button type="button" onClick={() => setActiveStage(0)}>Review sources</button></span></div>
+      </section> : activeStage === 1 ? <ReconstructView claims={project.claims} sources={project.sources} extractionMode={extractionMode} importedSourceCount={project.importedNames.length} extracting={busy} onExtract={() => void runExtraction()} onContinue={() => setActiveStage(2)} />
+      : activeStage === 2 ? <VerifyView projectId={projectId} conflicts={conflicts} gaps={evidenceGaps} onOpenReview={() => { setFilter("all"); setActiveStage(3); }} onOpenClaim={(claimId) => { setSelectedId(claimId); setFilter("all"); setActiveStage(3); }} />
+      : activeStage === 4 && project.approvedAt ? <>
+        {roleView.restrictedCount > 0 && role === "contributor" && <div className="redaction-notice"><Icon name="lock" /><span>{roleView.restrictedCount} item{roleView.restrictedCount === 1 ? " is" : "s are"} restricted for this role. Ask your project lead for access.</span></div>}
+        <RoleHandover claims={roleView.claims} reviews={project.reviews} role={role} acknowledgedAt={project.acknowledgedAt} onAcknowledge={acknowledge} />
+      </> : <>
+        <section className="review-stage" aria-labelledby="review-stage-title">
+        <div className="stage-page-heading review-page-heading"><div><h2 id="review-stage-title">Review the findings before they move forward</h2><p>Confirm supported details, record a careful decision on conflicts, and keep evidence gaps visible when needed.</p></div><div className="review-stage-status"><strong>{pending ? `${pending} decisions left` : "Review complete"}</strong><span>{counts.CONFLICT} conflicts · {counts["MISSING EVIDENCE"]} evidence gaps</span></div></div>
+        <div className="workspace-actions"><div><span className="source-set-name"><Icon name="layers" />{projectName}</span><span className="source-set-meta">{project.sources.length} source records · saved in PostgreSQL{project.importedNames.length ? ` · ${project.importedNames.length} imported file${project.importedNames.length === 1 ? "" : "s"}` : ""}</span></div>{accessRole === 'contributor' ? <span className="workspace-label">Read-only handover</span> : <ImportSources onImport={importSources} />}</div>
         <div className="review-layout">
           <ClaimQueue claims={project.claims} reviews={project.reviews} selectedId={selectedClaim?.id ?? ""} filter={filter} onFilter={setFilter} onSelect={setSelectedId} />
           <div className="detail-column"><EvidenceInspector claim={selectedClaim} />
-            <ClaimReview key={selectedClaim?.id ?? "empty"} claim={selectedClaim} review={selectedClaim ? project.reviews[selectedClaim.id] : undefined} onDecision={(id, disposition, editedStatement) => {
-              const existing: ClaimReviewData = { disposition, ...(editedStatement ? { editedStatement } : {}) };
-              setReview(id, existing);
-              if (disposition === "pending") setActiveStage(3);
-            }} />
+            <ClaimReview key={selectedClaim?.id ?? "empty"} claim={selectedClaim} review={selectedClaim ? project.reviews[selectedClaim.id] : undefined} canReview={accessRole === 'lead' || accessRole === 'reviewer'} busy={busy} onDecision={(id, disposition, editedStatement) => { void recordDecision(id, disposition, editedStatement); }} />
           </div>
         </div>
         <div className="approval-bar"><div><span className={`approval-indicator ${pending ? "waiting" : "ready"}`} />
             <div><strong>{pending ? `${pending} decisions remaining` : "Ready to hand over"}</strong><span>{pending ? "Review every finding to create the approved snapshot." : "Review complete. Incoming view stays hidden until you approve."}</span></div>
-          </div><button type="button" className="button button-primary" disabled={!canApprove(project)} onClick={approve}>Approve handover <Icon name="arrow" /></button>
+          </div><button type="button" className="button button-primary" disabled={!canApprove(project) || accessRole !== 'lead' || busy} onClick={() => void approve()}>{accessRole === 'lead' ? 'Approve handover' : 'Lead approval required'} <Icon name="arrow" /></button>
         </div>
+        </section>
       </>}
       <footer className="app-footer"><span>RelayOps demo · Project Chronos</span><span>Evidence first. Reviewed by humans.</span></footer>
     </main>

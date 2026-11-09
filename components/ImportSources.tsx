@@ -5,7 +5,7 @@ import { Icon } from "./icons";
 import type { SourceRecord } from "@/lib/domain/types";
 import { parseWorkspaceFiles } from "@/lib/ingestion/parse-workspace";
 
-export function ImportSources({ onImport }: { onImport: (sources: SourceRecord[], names: string[]) => void }) {
+export function ImportSources({ onImport }: { onImport: (sources: SourceRecord[], names: string[]) => Promise<void> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -19,7 +19,7 @@ export function ImportSources({ onImport }: { onImport: (sources: SourceRecord[]
     try {
       const selected = Array.from(files);
       const sources = await parseWorkspaceFiles(selected);
-      onImport(sources, selected.map((file) => file.name));
+      await onImport(sources, selected.map((file) => file.name));
       setMessage(`${sources.length} source${sources.length === 1 ? "" : "s"} added.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not read these files.");

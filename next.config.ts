@@ -7,7 +7,7 @@ const isStaticExport = isGitHubPages || isRenderStatic;
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   turbopack: { root: process.cwd() },
-  ...(isStaticExport ? { output: "export" as const } : {}),
+  ...(isStaticExport ? { output: "export" as const, trailingSlash: true } : {}),
   ...(isGitHubPages ? { basePath: "/RelayOps" } : {}),
 };
 

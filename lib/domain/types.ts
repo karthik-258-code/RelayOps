@@ -17,6 +17,7 @@ export interface Observation {
 export interface SourceRecord {
   id: string;
   title: string;
+  url?: string;
   kind: SourceKind;
   occurredAt: string;
   author: string;
@@ -29,6 +30,7 @@ export interface Citation {
   sourceId: string;
   sourceTitle: string;
   sourceKind: SourceKind;
+  sourceUrl?: string;
   occurredAt: string;
   author: string;
   excerpt: string;

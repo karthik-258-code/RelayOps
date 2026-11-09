@@ -21,6 +21,7 @@ export function EvidenceInspector({ claim }: { claim: Claim | null }) {
         <div className="citation-meta"><span className="source-kind">{citation.sourceKind}</span><time dateTime={citation.occurredAt}>{new Date(citation.occurredAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })}</time></div>
         <h4>{citation.sourceTitle}</h4>
         <blockquote>{citation.excerpt}</blockquote>
+        {citation.sourceUrl && <a className="citation-source-link" href={citation.sourceUrl} target="_blank" rel="noreferrer">Open original source <span aria-hidden="true">↗</span></a>}
         <div className="citation-footer"><span className="mono">{citation.sourceId}</span><span>By {citation.author}</span></div>
       </article>)}
     </div>

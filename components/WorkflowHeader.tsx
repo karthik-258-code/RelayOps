@@ -22,16 +22,17 @@ export function WorkflowHeader({ project, activeStage, onStageChange }: {
           {project.approvedAt ? "Approved snapshot" : "Review in progress"}
         </div>
       </div>
-      <nav className="stage-nav" aria-label="Handover workflow">
+      <div className="stage-navigation-wrap"><div className="stage-progress-caption"><span>HANDOVER PATH</span><span>STEP {activeStage + 1} OF 5</span></div><nav className="stage-nav" aria-label="Handover workflow">
         {stages.map((stage, index) => {
           const current = activeStage === index;
           const complete = index === 0 ? project.sources.length > 0 : index === 1 || index === 2 ? project.claims.length > 0 : index === 3 ? pending === 0 || Boolean(project.approvedAt) : Boolean(project.approvedAt);
-          return <button key={stage} type="button" className={`stage-button ${current ? "active" : ""} ${complete && !current ? "complete" : ""}`} onClick={() => onStageChange(index)} aria-current={current ? "step" : undefined}>
-            <span className="stage-index">{complete && index < activeStage ? <Icon name="check" /> : `0${index + 1}`}</span>
-            <span>{stage}</span>
+          const locked = index === 4 && !project.approvedAt;
+          return <button key={stage} type="button" className={`stage-button ${current ? "active" : ""} ${complete && !current ? "complete" : ""} ${locked ? "locked" : ""}`} onClick={() => onStageChange(index)} aria-current={current ? "step" : undefined} aria-label={locked ? "Handover, locked until every finding is reviewed and the handover is approved" : `${stage}${current ? ", current stage" : complete ? ", complete" : ""}`} title={locked ? "Review every finding and approve the handover to unlock" : undefined}>
+            <span className="stage-index">{locked ? <Icon name="lock" /> : complete && index < activeStage ? <Icon name="check" /> : `0${index + 1}`}</span>
+            <span>{stage}</span>{locked && <span className="stage-lock-label">LOCKED</span>}
           </button>;
         })}
-      </nav>
+      </nav></div>
     </div>
   );
 }

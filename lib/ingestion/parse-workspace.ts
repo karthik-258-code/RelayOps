@@ -82,6 +82,10 @@ function parseMarkdown(fileName: string, text: string): SourceRecord {
   };
 }
 
+export function parseMarkdownSource(fileName: string, text: string): SourceRecord {
+  return parseMarkdown(fileName, text);
+}
+
 function isObservation(value: unknown): value is Observation {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<Observation>;
@@ -92,6 +96,7 @@ function isSourceRecord(value: unknown): value is SourceRecord {
   if (!value || typeof value !== "object") return false;
   const source = value as Partial<SourceRecord>;
   return typeof source.id === "string" && typeof source.title === "string" &&
+    (source.url === undefined || (typeof source.url === "string" && /^https:\/\//i.test(source.url))) &&
     sourceKinds.includes(source.kind as SourceKind) && typeof source.occurredAt === "string" && !Number.isNaN(Date.parse(source.occurredAt)) &&
     typeof source.author === "string" && [1, 2, 3].includes(source.clearance as number) &&
     typeof source.content === "string" && Array.isArray(source.observations) && source.observations.every(isObservation);
