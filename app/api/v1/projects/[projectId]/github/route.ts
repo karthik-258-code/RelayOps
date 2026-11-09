@@ -3,6 +3,7 @@ import { Octokit } from '@octokit/rest';
 import { z } from 'zod';
 import { parseMarkdownSource } from '@/lib/ingestion/parse-workspace';
 import { parseGitHubRepositoryUrl } from '@/lib/github/repository';
+import { detectOrphanedOwnership } from '@/lib/reconstruction/orphaned-ownership';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
 import type { SourceRecord } from '@/lib/domain/types';
 
@@ -76,7 +77,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
     const [issueResult, pullResult, commitResult, rootResult, docsResult] = await Promise.allSettled([
       readPages((page) => octokit.rest.issues.listForRepo({ owner, repo, state: 'all', sort: 'updated', direction: 'desc', per_page: pageSize, page }), 8),
       readPages((page) => octokit.rest.pulls.list({ owner, repo, state: 'all', sort: 'updated', direction: 'desc', per_page: pageSize, page }), 8),
-      readPages((page) => octokit.rest.repos.listCommits({ owner, repo, per_page: pageSize, page }), 8),
+      readPages((page) => octokit.rest.repos.listCommits({ owner, repo, per_page: pageSize, page }), 40),
       octokit.rest.repos.getContent({ owner, repo, path: '' }),
       octokit.rest.repos.getContent({ owner, repo, path: 'docs' }),
     ]);
@@ -88,7 +89,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
 
     const issues = issueResult.status === 'fulfilled' ? issueResult.value.filter((item) => !('pull_request' in item)).slice(0, 6) : [];
     const pulls = pullResult.status === 'fulfilled' ? pullResult.value.slice(0, 6) : [];
-    const commits = commitResult.status === 'fulfilled' ? commitResult.value.slice(0, 8) : [];
+    const commits = commitResult.status === 'fulfilled' ? commitResult.value.slice(0, 20) : [];
     const rootFiles = rootResult.status === 'fulfilled' && Array.isArray(rootResult.value.data) ? rootResult.value.data : [];
     const docsFiles = docsResult.status === 'fulfilled' && Array.isArray(docsResult.value.data) ? docsResult.value.data : [];
     const docs = [...rootFiles, ...docsFiles]
@@ -157,6 +158,15 @@ export async function POST(request: Request, context: { params: Promise<{ projec
 
     if (!sources.length) return jsonError(422, 'NO_IMPORTABLE_CONTENT', 'This repository has no readable README, documentation, commits, issues, or pull requests.');
     if (sources.length >= maxSources) notices.push(`Import capped at ${maxSources} records to keep the handover reviewable. Re-run after narrowing the repository scope if needed.`);
+    for (const signal of detectOrphanedOwnership(sources)) {
+      const topic = `orphaned-owner-${signal.author.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48)}`;
+      const statement = `${signal.author} authored ${signal.commitCount} of ${signal.totalCommits} imported commits (${Math.round(signal.share * 100)}%) in the last 14 days, but no linked documentation, task, or discussion names them. Confirm whether critical knowledge is undocumented.`;
+      for (const source of sources) {
+        if (!signal.sourceIds.includes(source.id)) continue;
+        const excerpt = source.content.split(/\r?\n/).find((line) => line.trim() && !line.startsWith('#'))?.trim() ?? source.title;
+        source.observations.push({ topic, category: 'ownership', statement, value: `${signal.author.toLocaleLowerCase()}:${signal.commitCount}/${signal.totalCommits}`, excerpt, evidenceGap: true });
+      }
+    }
     return Response.json({ repository: `${owner}/${repo}`, sources, notices }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (caught) {
     const status = typeof caught === 'object' && caught && 'status' in caught ? Number(caught.status) : 0;

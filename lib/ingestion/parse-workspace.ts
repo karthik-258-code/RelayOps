@@ -4,6 +4,7 @@ const categories: ClaimCategory[] = ["decision", "ownership", "blocker", "risk",
 const sourceKinds: SourceKind[] = ["document", "task", "discussion", "repository"];
 const maxFiles = 10;
 const maxFileBytes = 2 * 1024 * 1024;
+const maxSourceRecords = 50;
 
 function slug(value: string): string {
   return value.toLocaleLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "source";
@@ -102,12 +103,112 @@ function isSourceRecord(value: unknown): value is SourceRecord {
     typeof source.content === "string" && Array.isArray(source.observations) && source.observations.every(isObservation);
 }
 
+function observationFromText(topic: string, text: string, excerpt: string): Observation[] {
+  const patterns: Array<[RegExp, ClaimCategory]> = [
+    [/\bdecision\s*[:=-]\s*(.+)/i, "decision"],
+    [/\b(?:owner|owned by)\s*[:=-]?\s*(.+)/i, "ownership"],
+    [/\bblocker\s*[:=-]\s*(.+)/i, "blocker"],
+    [/\brisk\s*[:=-]\s*(.+)/i, "risk"],
+    [/\b(?:next action|next step)\s*[:=-]\s*(.+)/i, "next-action"],
+  ];
+  const observations: Observation[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    for (const [pattern, category] of patterns) {
+      const match = line.match(pattern);
+      if (!match?.[1]?.trim()) continue;
+      const statement = match[1].trim().slice(0, 1000);
+      const keyTerms = slug(statement).split("-").filter((word) => !["the", "and", "for", "with", "from", "that", "this", "will", "must", "before", "after", "still", "only", "need", "needs"].includes(word)).slice(0, 5);
+      observations.push({ topic: `${category}-${keyTerms.join("-")}`.slice(0, 120) || topic, category, statement, value: statement.toLocaleLowerCase().slice(0, 300), excerpt: line.trim() || excerpt });
+    }
+  }
+  return observations;
+}
+
+function sourceFromExternalRecord(value: Record<string, unknown>, provider: "linear" | "slack" | "discord", fileName: string, index: number): SourceRecord | null {
+  const source = value as Record<string, unknown>;
+  const get = (...keys: string[]) => keys.map((key) => source[key]).find((item) => typeof item === "string") as string | undefined;
+  const content = get("content", "body", "text", "description", "message") ?? "";
+  if (!content.trim()) return null;
+  const title = get("title", "name", "channel_name") ?? (provider === "slack" ? `Slack message ${index + 1}` : provider === "discord" ? `Discord thread ${index + 1}` : `Linear issue ${index + 1}`);
+  const id = get("identifier", "id", "key", "issue_key", "ts", "timestamp") ?? `${fileName}:${index + 1}`;
+  const occurredAt = get("occurredAt", "createdAt", "created_at", "timestamp", "date", "ts") ?? new Date(0).toISOString();
+  const numericTimestamp = Number(occurredAt);
+  const parsedDate = Number.isFinite(numericTimestamp) && numericTimestamp > 1_000_000_000
+    ? new Date(numericTimestamp * 1000).toISOString()
+    : Number.isNaN(Date.parse(occurredAt)) ? new Date(0).toISOString() : new Date(occurredAt).toISOString();
+  const nestedAuthor = [source.author, source.user, source.assignee].find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
+  const author = get("author", "user_name", "username", "user", "assignee") ?? [nestedAuthor?.name, nestedAuthor?.username, nestedAuthor?.display_name].find((item) => typeof item === "string") as string | undefined ?? "Unknown";
+  const clearance = Number(source.clearance ?? (source.tier === 3 || source.confidential === true ? 3 : 1));
+  const kind: SourceKind = provider === "linear" ? "task" : "discussion";
+  return { id: `${provider.toUpperCase()}-${slug(id)}`, title, kind, occurredAt: parsedDate, author, clearance: clearance === 2 || clearance === 3 ? clearance : 1, content, observations: observationFromText(slug(title), content, content.slice(0, 1000)) };
+}
+
+function parseExternalJson(parsed: unknown, fileName: string): SourceRecord[] | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const root = (Array.isArray(parsed) ? {} : parsed) as Record<string, unknown>;
+  const linearItems = Array.isArray(root.issues) ? root.issues : Array.isArray(root.data) && root.provider === "linear" ? root.data : null;
+  if (linearItems) return linearItems.flatMap((item, index) => item && typeof item === "object" ? [sourceFromExternalRecord(item as Record<string, unknown>, "linear", fileName, index)].filter((record): record is SourceRecord => Boolean(record)) : []);
+  const discordChannel = root.channel && typeof root.channel === "object" ? root.channel as Record<string, unknown> : null;
+  const discordItems = Array.isArray(root.messages) && (root.provider === "discord" || Boolean(root.guild) || Boolean(discordChannel)) ? root.messages : null;
+  if (discordItems) {
+    const channelInfo = discordChannel ?? {};
+    const channel = typeof channelInfo.name === "string" ? channelInfo.name : typeof root.channel === "string" ? root.channel : fileName.replace(/\.json$/i, "");
+    const clearance = Number(root.clearance ?? (root.tier === 3 || root.confidential === true ? 3 : 1));
+    const isThreadChannel = root.isThread === true || channelInfo.parentId !== undefined || channelInfo.parent_id !== undefined || [10, 11, 12].includes(Number(channelInfo.type));
+    const threads = new Map<string, Record<string, unknown>[]>();
+    discordItems.forEach((item, index) => {
+      if (!item || typeof item !== "object") return;
+      const message = item as Record<string, unknown>;
+      const threadId = String(message.thread_id ?? message.threadId ?? (isThreadChannel ? channelInfo.id ?? channel : message.id ?? index + 1));
+      threads.set(threadId, [...(threads.get(threadId) ?? []), message]);
+    });
+    return [...threads.entries()].flatMap(([threadId, messages], index) => {
+      const first = messages[0];
+      const authorName = (message: Record<string, unknown>) => {
+        const author = message.author && typeof message.author === "object" ? message.author as Record<string, unknown> : {};
+        return author.name ?? author.username ?? "Unknown";
+      };
+      const content = messages.map((message) => `${String(authorName(message))}: ${String(message.content ?? "")}`).join("\n");
+      const record = sourceFromExternalRecord({ ...first, id: `${channel}:${threadId}`, title: `${channel} thread`, author: authorName(first), content, text: content, clearance: first.clearance ?? clearance }, "discord", fileName, index);
+      return record ? [{ ...record, title: `${channel} · ${record.title}`, author: `${messages.length} message${messages.length === 1 ? "" : "s"}` }] : [];
+    });
+  }
+  const slackItems = Array.isArray(parsed) ? parsed : Array.isArray(root.messages) ? root.messages : null;
+  if (slackItems) {
+    const channel = typeof root.channel_name === "string" ? root.channel_name : typeof root.channel === "string" ? root.channel : fileName.replace(/\.json$/i, "");
+    const clearance = Number(root.clearance ?? (root.tier === 3 || root.confidential === true ? 3 : 1));
+    const threads = new Map<string, Record<string, unknown>[]>();
+    slackItems.forEach((item, index) => {
+      if (!item || typeof item !== "object") return;
+      const message = item as Record<string, unknown>;
+      const threadId = typeof message.thread_ts === "string" ? message.thread_ts : typeof message.ts === "string" ? message.ts : String(index + 1);
+      threads.set(threadId, [...(threads.get(threadId) ?? []), message]);
+    });
+    return [...threads.entries()].flatMap(([threadId, messages], index) => {
+      const first = messages[0];
+      const content = messages.map((message) => {
+        const author = message.user_name ?? message.username ?? message.user ?? "Unknown";
+        const body = message.text ?? message.message ?? "";
+        return `${author}: ${String(body)}`;
+      }).join("\n");
+      const record = sourceFromExternalRecord({ ...first, id: `${channel}:${threadId}`, text: content, clearance: first.clearance ?? clearance, channel_name: channel }, "slack", fileName, index);
+      return record ? [{ ...record, title: `${channel} · ${record.title}`, author: `${messages.length} message${messages.length === 1 ? "" : "s"}` }] : [];
+    });
+  }
+  return null;
+}
+
 function parseJson(fileName: string, text: string): SourceRecord[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new Error(`${fileName}: JSON is not valid. Check commas, quotes, and brackets.`);
+  }
+  const externalRecords = parseExternalJson(parsed, fileName);
+  if (externalRecords) {
+    if (!externalRecords.length) throw new Error(`${fileName}: no supported Slack messages or Linear issues were found.`);
+    return externalRecords;
   }
   const sources = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" && Array.isArray((parsed as { sources?: unknown }).sources) ? (parsed as { sources: unknown[] }).sources : [parsed];
   if (!sources.length || !sources.every(isSourceRecord)) {
@@ -128,6 +229,8 @@ export async function parseWorkspaceFiles(files: File[]): Promise<SourceRecord[]
     else if (/\.json$/i.test(file.name)) sources.push(...parseJson(file.name, text));
     else throw new Error(`${file.name}: use a .md or .json file.`);
   }
+
+  if (sources.length > maxSourceRecords) throw new Error(`This import contains ${sources.length} records. Split it into batches of ${maxSourceRecords} records or fewer.`);
 
   const ids = new Set<string>();
   for (const source of sources) {

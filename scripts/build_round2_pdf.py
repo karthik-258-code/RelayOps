@@ -22,7 +22,7 @@ styles.add(ParagraphStyle(name='Deck', parent=styles['Normal'], fontName='Helvet
 styles.add(ParagraphStyle(name='Section', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=15.5, leading=18, textColor=accent, spaceBefore=9, spaceAfter=5, keepWithNext=True))
 styles.add(ParagraphStyle(name='Subsection', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, leading=15, textColor=ink, spaceBefore=8, spaceAfter=4, keepWithNext=True))
 styles.add(ParagraphStyle(name='BodyReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=9.2, leading=13, textColor=ink, spaceAfter=4))
-styles.add(ParagraphStyle(name='BulletReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=9, leading=12.2, textColor=ink, leftIndent=13, firstLineIndent=-8, spaceAfter=2.5))
+styles.add(ParagraphStyle(name='BulletReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=8.9, leading=10.9, textColor=ink, leftIndent=13, firstLineIndent=-8, spaceAfter=1.2))
 styles.add(ParagraphStyle(name='MonoReport', parent=styles['BodyText'], fontName='Courier', fontSize=8, leading=11, textColor=ink, backColor=pale, borderPadding=7, leftIndent=8, rightIndent=8, spaceBefore=4, spaceAfter=8))
 
 def inline(text):
@@ -49,6 +49,9 @@ lines = SOURCE.read_text(encoding='utf-8-sig').splitlines()
 for line in lines:
     line = line.strip()
     if not line or line == '```':
+        continue
+    if line == '<!-- page-break -->':
+        story.append(PageBreak())
         continue
     if line.startswith('# '):
         story.append(Paragraph(inline(line[2:]), styles['ReportTitle']))

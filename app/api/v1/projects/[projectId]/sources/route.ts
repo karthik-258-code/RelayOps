@@ -68,7 +68,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
   let raw: unknown;
   try { raw = await request.json(); } catch { return jsonError(400, 'INVALID_JSON', 'Source upload must be valid JSON.'); }
   const parsed = payloadSchema.safeParse(raw);
-  if (!parsed.success) return jsonError(422, 'INVALID_SOURCE', 'Upload valid Markdown or RelayOps JSON source records.');
+  if (!parsed.success) return jsonError(422, 'INVALID_SOURCE', 'Upload valid Markdown/Notion Markdown, RelayOps JSON, Linear issues, or Slack/Discord export records.');
   const totalPayloadBytes = Buffer.byteLength(JSON.stringify(parsed.data), 'utf8');
   if (totalPayloadBytes > 5_000_000) return jsonError(413, 'SOURCE_BATCH_TOO_LARGE', 'Keep each source under 2 MB and each import batch under 5 MB total, including extracted observations.');
 

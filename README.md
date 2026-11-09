@@ -1,6 +1,6 @@
 # RelayOps
 
-RelayOps turns project records into an evidence-backed handover. It imports Markdown, RelayOps JSON, or a GitHub repository; stores source passages and findings in PostgreSQL; checks evidence and disagreements; then requires a human review and lead approval before the incoming contributor can see the snapshot.
+RelayOps turns project records into an evidence-backed handover. It imports Markdown, RelayOps, Linear, Slack, or GitHub records; stores source passages and findings in PostgreSQL; checks evidence and disagreements; then requires a human review and lead approval before the incoming contributor can see the snapshot. The seeded Project Chronos scenario includes six docs, eighteen repository records, a Linear task record, and four Slack channels, including restricted evidence.
 
 ## Run the local product
 
@@ -31,7 +31,7 @@ These credentials exist only in the local seeded database. They are not producti
 ## Main workflow
 
 1. Open **Connect**. The Project Chronos sample is already in PostgreSQL.
-2. Add up to 10 `.md` or RelayOps `.json` files (2 MB each), or enter a GitHub repository URL. GitHub imports a bounded sample of the README, root/docs Markdown files, recent commits and selected commit/PR diffs, issues and their comments, pull requests, reviews, conversation comments, and code review comments. Results are capped at 50 records and paged requests are bounded. Public repositories need no token. For a private repository, use a fine-grained read-only GitHub token with repository Metadata, Contents, Issues, and Pull requests read access; the token is used for that request and is not saved.
+2. Add up to 10 `.md` or `.json` files (2 MB each), or enter a GitHub repository URL. Notion pages can be exported as Markdown. JSON accepts RelayOps source records, Linear issue arrays (`issues`), Slack exports (`messages` or a top-level message array), and DiscordChatExporter channel exports (`provider: "discord"`). Slack and Discord replies are grouped by thread; timestamps, authors, and per-channel/message clearance are retained. Explicit `Decision:`, `Owner:`, `Blocker:`, `Risk:`, and `Next action:` labels become evidence observations. GitHub imports a bounded sample of README/docs, recent commits and selected diffs, issues/comments, PRs/reviews/conversation comments/code review comments. Results are capped at 50 records. Public repositories need no token. Private imports use a fine-grained read-only token for that request only.
 3. Review **Reconstruct**. Structured Markdown/JSON facts are grouped deterministically. If a Gemini key is configured, select **Run Gemini extraction**; every model fact must cite an exact quote in a stored passage, and only verified citations are persisted. pgvector embeddings and temporal entity relationships are saved when available.
 4. Inspect **Verify** for contradictions and missing evidence. With Gemini configured and passage embeddings generated, search source records with a natural-language question; pgvector returns clearance-filtered matches with links to their source.
 5. In **Review**, a lead or reviewer confirms, resolves, accepts uncertainty, or excludes each finding. Only a project lead can approve. Decisions are written to PostgreSQL with an optimistic version check.

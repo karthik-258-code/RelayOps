@@ -9,14 +9,13 @@ const categoryLabels: Record<ClaimCategory, string> = {
   "next-action": "Next actions",
 };
 
-export function ReconstructView({ claims, sources, onContinue, onExtract, extracting, extractionMode, importedSourceCount }: {
+export function ReconstructView({ claims, sources, onContinue, onExtract, extracting, extractionMode }: {
   claims: Claim[];
   sources: SourceRecord[];
   onContinue: () => void;
   onExtract: () => void;
   extracting: boolean;
   extractionMode: 'gemini' | 'deterministic';
-  importedSourceCount: number;
 }) {
   const categories = (Object.keys(categoryLabels) as ClaimCategory[]).map((category) => ({
     category,
@@ -37,7 +36,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, extrac
         <p className="trail-note">When sources disagree, both citations remain with the finding. When evidence is missing, RelayOps labels the gap instead of filling it in.</p>
       </div>
     </div>
-    <div className="stage-page-footer"><span>{extractionMode === 'gemini' ? 'Model output stays unapproved until a human reviews it.' : 'Connect records to run Gemini extraction; structured local checks are still available.'}</span><div className="reconstruct-actions">{importedSourceCount > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Checking citations…' : extractionMode === 'gemini' ? 'Run Gemini again' : 'Run Gemini extraction'} <span aria-hidden="true">✳</span></button>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
+    <div className="stage-page-footer"><span>{extractionMode === 'gemini' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Gemini extraction requires a configured key and available quota.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Checking citations…' : extractionMode === 'gemini' ? 'Run Gemini again' : 'Run Gemini extraction'} <span aria-hidden="true">✳</span></button>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
   </section>;
 }
 
