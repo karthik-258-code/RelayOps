@@ -49,7 +49,8 @@ function parseMarkdown(fileName: string, text: string): SourceRecord {
     const topicLabel = (item[1] || item[2]).trim();
     const statement = `${item[2].trim()}: ${item[3].trim()}`;
     const value = item[3].trim().toLocaleLowerCase();
-    observations.push({ topic: slug(topicLabel), category: activeCategory, statement, value, excerpt: line.trim() });
+    observations.push({ topic: slug(topicLabel), category: activeCategory, statement, value, excerpt: line.trim(),
+      ...(activeCategory === "ownership" && /^(owner|owner name)$/i.test(item[2].trim()) ? { ownerName: item[3].trim() } : {}) });
   }
 
   const title = metadata.title || fileName.replace(/\.md$/i, "");
@@ -90,7 +91,8 @@ export function parseMarkdownSource(fileName: string, text: string): SourceRecor
 function isObservation(value: unknown): value is Observation {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<Observation>;
-  return typeof item.topic === "string" && typeof item.statement === "string" && typeof item.value === "string" && categories.includes(item.category as ClaimCategory);
+  return typeof item.topic === "string" && typeof item.statement === "string" && typeof item.value === "string" && categories.includes(item.category as ClaimCategory) &&
+    (item.ownerName === undefined || typeof item.ownerName === "string") && (item.dueAt === undefined || typeof item.dueAt === "string");
 }
 
 function isSourceRecord(value: unknown): value is SourceRecord {
@@ -118,7 +120,8 @@ function observationFromText(topic: string, text: string, excerpt: string): Obse
       if (!match?.[1]?.trim()) continue;
       const statement = match[1].trim().slice(0, 1000);
       const keyTerms = slug(statement).split("-").filter((word) => !["the", "and", "for", "with", "from", "that", "this", "will", "must", "before", "after", "still", "only", "need", "needs"].includes(word)).slice(0, 5);
-      observations.push({ topic: `${category}-${keyTerms.join("-")}`.slice(0, 120) || topic, category, statement, value: statement.toLocaleLowerCase().slice(0, 300), excerpt: line.trim() || excerpt });
+      const ownerName = category === "ownership" ? statement.match(/^([A-Z][\p{L}\w.'-]*(?:\s+[A-Z][\p{L}\w.'-]*){0,3})(?:\s+(?:owns|is responsible for)\b|$)/u)?.[1] : undefined;
+      observations.push({ topic: `${category}-${keyTerms.join("-")}`.slice(0, 120) || topic, category, statement, value: statement.toLocaleLowerCase().slice(0, 300), excerpt: line.trim() || excerpt, ...(ownerName ? { ownerName } : {}) });
     }
   }
   return observations;

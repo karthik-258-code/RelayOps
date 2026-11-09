@@ -62,10 +62,10 @@ on conflict (project_id, user_id) do nothing;
 
 insert into public.sources (id, project_id, provider, external_id, title, url, author, occurred_at, clearance, content_hash, metadata)
 values
-  ('30000000-0000-4000-8000-000000000011', '20000000-0000-4000-8000-000000000011', 'document', 'chronos/architecture.md', 'Architecture notes', null, 'Engineering team', '2026-10-28T09:00:00Z', 1, encode(extensions.digest('Chronos architecture notes', 'sha256'), 'hex'), '{"kind":"document"}'),
-  ('30000000-0000-4000-8000-000000000012', '20000000-0000-4000-8000-000000000011', 'task', 'CH-184', 'Session store rollout task', null, 'Mina Patel', '2026-10-30T11:30:00Z', 1, encode(extensions.digest('CH-184 session store', 'sha256'), 'hex'), '{"kind":"task","status":"in_progress"}'),
-  ('30000000-0000-4000-8000-000000000013', '20000000-0000-4000-8000-000000000011', 'github', 'chronos#482', 'Session store implementation', 'https://github.com/example/chronos/pull/482', 'Platform team', '2026-10-31T15:00:00Z', 1, encode(extensions.digest('PR 482 session store', 'sha256'), 'hex'), '{"kind":"pull_request","number":482}'),
-  ('30000000-0000-4000-8000-000000000014', '20000000-0000-4000-8000-000000000011', 'manual', 'incident/rollout-note', 'Rollout incident note', null, 'Project lead', '2026-11-01T08:30:00Z', 3, encode(extensions.digest('Synthetic restricted rollout note', 'sha256'), 'hex'), '{"kind":"internal_note"}')
+  ('30000000-0000-4000-8000-000000000011', '20000000-0000-4000-8000-000000000011', 'document', 'chronos/architecture.md', 'Architecture notes', null, 'Engineering team', '2026-10-28T09:00:00Z', 1, encode(extensions.digest('Chronos architecture notes', 'sha256'), 'hex'), '{"kind":"document","relayops_import":true}'),
+  ('30000000-0000-4000-8000-000000000012', '20000000-0000-4000-8000-000000000011', 'task', 'CH-184', 'Session store rollout task', null, 'Mina Patel', '2026-10-30T11:30:00Z', 1, encode(extensions.digest('CH-184 session store', 'sha256'), 'hex'), '{"kind":"task","status":"in_progress","relayops_import":true}'),
+  ('30000000-0000-4000-8000-000000000013', '20000000-0000-4000-8000-000000000011', 'github', 'chronos#482', 'Session store implementation', 'https://github.com/example/chronos/pull/482', 'Platform team', '2026-10-31T15:00:00Z', 1, encode(extensions.digest('PR 482 session store', 'sha256'), 'hex'), '{"kind":"pull_request","number":482,"relayops_import":true}'),
+  ('30000000-0000-4000-8000-000000000014', '20000000-0000-4000-8000-000000000011', 'manual', 'incident/rollout-note', 'Rollout incident note', null, 'Project lead', '2026-11-01T08:30:00Z', 3, encode(extensions.digest('Synthetic restricted rollout note', 'sha256'), 'hex'), '{"kind":"internal_note","relayops_import":true}')
 on conflict (project_id, provider, external_id) do nothing;
 
 insert into public.source_passages (id, project_id, source_id, passage_index, content, content_hash, clearance)
@@ -149,7 +149,7 @@ with docs as (
 ), inserted as (
   insert into public.sources (project_id,provider,external_id,title,author,occurred_at,clearance,content_hash,metadata)
   select '20000000-0000-4000-8000-000000000011',provider,external_id,title,author,occurred_at,clearance,
-    encode(extensions.digest(content,'sha256'),'hex'),jsonb_build_object('kind',provider,'synthetic',true,'source_pack','chronos-round1')
+    encode(extensions.digest(content,'sha256'),'hex'),jsonb_build_object('kind',provider,'synthetic',true,'source_pack','chronos-round1','relayops_import',true)
   from all_records on conflict (project_id,provider,external_id) do nothing
   returning id,project_id,external_id
 )
@@ -178,3 +178,8 @@ from (values
 join public.sources s on s.project_id='20000000-0000-4000-8000-000000000011' and s.external_id=c.external_id
 join public.source_passages p on p.source_id=s.id and position(c.quote in p.content)>0
 on conflict (id) do nothing;
+
+-- Mark pre-existing sample rows as extraction inputs too (safe on a local seed rerun).
+update public.sources set metadata = metadata || '{"relayops_import":true}'::jsonb
+where project_id = '20000000-0000-4000-8000-000000000011'
+  and (metadata->>'synthetic' = 'true' or external_id in ('chronos/architecture.md','CH-184','chronos#482','incident/rollout-note'));

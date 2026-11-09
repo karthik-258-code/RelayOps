@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
   const [projectResult, sourceResult, claimResult, snapshotResult, receiptResult] = await Promise.all([
     admin.from('projects').select('id,name,description,slug,revision').eq('id', projectId).single(),
     admin.from('sources').select('id,provider,external_id,title,url,author,occurred_at,clearance,metadata').eq('project_id', projectId).lte('clearance', access.clearance).order('occurred_at', { ascending: true }),
-    admin.from('claims').select('id,title,category,statement,status,confidence,clearance,version,extraction_run_id').eq('project_id', projectId).lte('clearance', access.clearance).order('created_at', { ascending: true }),
+    admin.from('claims').select('id,title,category,statement,status,confidence,clearance,owner_name,due_at,version,extraction_run_id').eq('project_id', projectId).lte('clearance', access.clearance).order('created_at', { ascending: true }),
     admin.from('approved_snapshots').select('id,version,created_at,content').eq('project_id', projectId).order('version', { ascending: false }).limit(1).maybeSingle(),
     admin.from('receipt_acknowledgements').select('snapshot_id,acknowledged_at').eq('project_id', projectId).eq('acknowledged_by', user.id).order('acknowledged_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
@@ -93,6 +93,8 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
       citations,
       clearance: claim.clearance as 1 | 2 | 3,
       alternatives: citations.map((citation) => citation.excerpt),
+      ...(claim.owner_name ? { ownerName: claim.owner_name } : {}),
+      ...(claim.due_at ? { dueAt: claim.due_at } : {}),
     };
   });
   const reviews: Record<string, ClaimReview> = Object.fromEntries(domainClaims.map((claim) => [claim.id, { disposition: 'pending' }]));

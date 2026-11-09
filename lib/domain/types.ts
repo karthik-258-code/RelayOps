@@ -12,6 +12,8 @@ export interface Observation {
   excerpt?: string;
   /** Source is useful for ownership, but the evidence needed to verify it is absent. */
   evidenceGap?: boolean;
+  ownerName?: string;
+  dueAt?: string;
 }
 
 export interface SourceRecord {
@@ -46,6 +48,8 @@ export interface Claim {
   citations: Citation[];
   clearance: Clearance;
   alternatives: string[];
+  ownerName?: string;
+  dueAt?: string;
 }
 
 export type ReviewDisposition = "pending" | "confirmed" | "resolved" | "accepted-uncertainty" | "rejected";

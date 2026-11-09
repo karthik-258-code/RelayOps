@@ -1,4 +1,5 @@
 import hmac
+import logging
 import os
 from typing import Annotated
 
@@ -9,8 +10,10 @@ from app.pipeline import EMBEDDING_MODEL, MODEL_NAME, run_extraction
 from app.embeddings import embed_query_text
 from app.privacy import PRESIDIO_READY, redact_sensitive_content
 from app.schemas import ExtractRequest, ExtractResponse
+from app.provider_errors import classify_gemini_failure, safe_provider_metadata
 
 app = FastAPI(title="RelayOps Evidence Extractor", version="1.0.0", docs_url=None, redoc_url=None)
+logger = logging.getLogger("relayops.extractor")
 
 
 class RedactionObservation(BaseModel):
@@ -21,6 +24,8 @@ class RedactionObservation(BaseModel):
     value: str = Field(max_length=300)
     excerpt: str | None = Field(default=None, max_length=4000)
     evidenceGap: bool | None = None
+    ownerName: str | None = Field(default=None, max_length=160)
+    dueAt: str | None = Field(default=None, max_length=100)
 
 
 class RedactionSource(BaseModel):
@@ -77,6 +82,7 @@ def redact(request: RedactionRequest):
                     "statement": redact_sensitive_content(observation.statement),
                     "value": redact_sensitive_content(observation.value),
                     **({"excerpt": redact_sensitive_content(observation.excerpt)} if observation.excerpt else {}),
+                    **({"ownerName": redact_sensitive_content(observation.ownerName)} if observation.ownerName else {}),
                 }
                 for observation in source.observations
             ],
@@ -94,10 +100,9 @@ async def extract(request: ExtractRequest):
     try:
         result = await run_extraction(request)
     except Exception as error:
-        message = str(error).casefold()
-        if "quota" in message or "rate limit" in message or "resource_exhausted" in message:
-            raise HTTPException(status_code=429, detail="Gemini rate limit reached. Wait a moment and retry.") from None
-        raise HTTPException(status_code=502, detail="Gemini extraction failed. Imported source records remain available for manual review.") from None
+        failure_status, safe_detail, _provider_status = classify_gemini_failure(error)
+        logger.warning("Gemini extraction failed: %s", safe_provider_metadata(error))
+        raise HTTPException(status_code=failure_status, detail=safe_detail) from None
 
     claims = result.get("claims", [])
     embeddings = result.get("embeddings", {})

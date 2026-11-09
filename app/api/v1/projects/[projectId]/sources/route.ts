@@ -14,6 +14,8 @@ const observationSchema = z.object({
   value: z.string().max(300),
   excerpt: z.string().max(4000).optional(),
   evidenceGap: z.boolean().optional(),
+  ownerName: z.string().max(160).optional(),
+  dueAt: z.string().max(100).optional(),
 }).strict();
 const sourceSchema = z.object({
   id: z.string().min(1).max(240),
@@ -106,6 +108,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
       topic: redactSensitiveData(observation.topic),
       statement: redactSensitiveData(observation.statement),
       value: redactSensitiveData(observation.value),
+      ...(observation.ownerName ? { ownerName: redactSensitiveData(observation.ownerName) } : {}),
       ...(observation.excerpt ? { excerpt: redactSensitiveData(observation.excerpt) } : {}),
     }));
     const sourceId = stableUuid(`${projectId}:upload:${item.id}`);
@@ -196,6 +199,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
     const { error: claimError } = await admin.from('claims').upsert({
       id: claimId, project_id: projectId, title: claim.topic.replaceAll('-', ' '), category: claim.category,
       statement: claim.statement, status: claimStatus,
+      owner_name: claim.ownerName ?? null, due_at: claim.dueAt ?? null,
       confidence: citationExcerpts.length ? 0.55 : null, clearance: claim.clearance,
       version: oldClaim ? oldClaim.version + (oldClaim.statement === claim.statement && oldClaim.status === claimStatus && oldClaim.clearance === claim.clearance ? 0 : 1) : 1,
     }, { onConflict: 'id' });

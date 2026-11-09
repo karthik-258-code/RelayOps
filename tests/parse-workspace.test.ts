@@ -15,6 +15,7 @@ test("normalizes Linear issue exports with stable provenance and labeled facts",
   assert.equal(sources[0].observations.length, 2);
   assert.equal(sources[0].observations[0].category, "decision");
   assert.equal(sources[0].observations[1].category, "ownership");
+  assert.equal(sources[0].observations[1].ownerName, "Mina Patel");
 });
 
 test("normalizes Slack channel exports and retains restricted clearance", async () => {

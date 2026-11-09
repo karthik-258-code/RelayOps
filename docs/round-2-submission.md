@@ -11,20 +11,22 @@ The ready-to-use Project Chronos workspace models the Round 1 fintech migration 
 - Public product homepage and a working sign-in screen.
 - Local Supabase Auth sample accounts for project lead and incoming contributor.
 - Five-stage workflow: Connect, Reconstruct, Verify, Review, and Handover.
+- Reconstruct presents the four promised views: a cited decision timeline, ownership map, active blockers and risks, and next actions; each finding opens directly in Review.
+- Incoming view turns approved decisions/owners, blockers/risks, and next actions into a cited first-seven-days sequence without inventing dates or ownership.
 - Project Chronos synthetic workspace persisted in PostgreSQL, with the six-document, eighteen-repository-record, Linear, and four-channel Slack corpus described in Round 1.
 - Import Markdown (including Notion page exports), RelayOps JSON, Linear issue JSON, Slack channel/thread JSON, and DiscordChatExporter channel/thread JSON with structural validation, a 50-record import ceiling, bounded file size/count, thread grouping, timestamp/author provenance, clearance preservation, and duplicate checks.
 - Flag a GitHub contributor who authored more than 70% of imported commits in the last 14 days when linked docs, tasks, and discussions do not mention them; the finding is marked as missing evidence and cites the contributing commit records.
 - Import a public GitHub README, root/docs Markdown files, recent commits and selected commit/PR diffs, issues/comments, pull requests/reviews/conversation comments/code review comments; optional private-repository token is request-only. Pagination and the returned batch are bounded (50 records maximum).
 - Redact common API credentials, bearer tokens, private keys, emails, and phone numbers before storage, using Presidio when available and deterministic scanner fallback otherwise.
 - Store sources, passages, claims, citations, graph entities/edges, review decisions, approval snapshots, and receipt acknowledgements in PostgreSQL with pgvector support.
-- Reconstruct supported facts deterministically; optional Gemini/LangGraph extraction can produce structured facts, embeddings, and graph edges when a valid key/quota is configured.
+- Reconstruct supported facts deterministically; the Gemini/LangGraph extractor is integrated to produce structured facts, embeddings, and temporal graph edges. The seeded Chronos sources are now included in the extraction input.
 - Validate every persisted citation against the exact stored passage and quoted text. Model output cannot approve or resolve a disagreement.
 - Show disagreements and evidence gaps explicitly in Verify.
 - Search embedded source passages by natural-language query with pgvector cosine similarity; the search RPC runs as the signed-in user so project membership and clearance RLS filter matches before content is returned.
 - Human review actions use optimistic claim versions; any changed claim needs a new decision. A heartbeat-backed project lock prevents source import or extraction from racing with review and approval.
 - A lead approval gate blocks incomplete handovers. Versioned snapshots are immutable and repeated approval of one revision returns its existing snapshot.
 - Contributors receive only an approved snapshot and only data at their clearance level; source text, citations, and related evidence are filtered server-side and protected by RLS.
-- Incoming contributor can acknowledge the specific approved snapshot.
+- Incoming contributor gets the approved first-seven-days sequence, source-linked project findings, and can acknowledge the specific approved snapshot.
 
 ## Technology and implementation details
 
@@ -57,7 +59,7 @@ The initial Round 2 build temporarily replaced the planned database, server-side
 
 ## Known limitations / what does not work yet
 
-- A live Gemini extraction request was attempted with the configured key but the extractor returned HTTP 502. The key is not verified for extraction; the provider root cause is unknown and no repeated request was made. Semantic retrieval requires successful embeddings and is not verified end to end.
+- Gemini accepted the configured key for its model-list endpoint and listed `gemini-3.8-flash`. A prior live extraction request returned HTTP 502, so generation and embeddings remain unverified; no generation call was repeated because quota is depleted. The extractor now logs only sanitized provider status metadata and gives actionable, non-secret error categories for the next funded attempt.
 - Private GitHub repository import requires a read-only fine-grained token. The import is bounded to 50 recent records, selected diffs, and root/docs Markdown; it does not mirror the full repository or watch for later changes.
 - The public link is not deployed: static GitHub Pages cannot run these APIs. Render and hosted Supabase still need production configuration.
 - Only the seeded Project Chronos workspace and local demo accounts are supplied. Arbitrary workspaces and invitations are not included.

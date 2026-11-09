@@ -53,6 +53,8 @@ export function reconstructWorkspace(sources: SourceRecord[]): Claim[] {
       citations,
       clearance: Math.max(...citations.map((citation) => citation.clearance)) as 1 | 2 | 3,
       alternatives,
+      ...(lastItem.observation.ownerName ? { ownerName: lastItem.observation.ownerName } : {}),
+      ...(lastItem.observation.dueAt ? { dueAt: lastItem.observation.dueAt } : {}),
     });
   }
 
