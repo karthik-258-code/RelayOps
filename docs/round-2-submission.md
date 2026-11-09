@@ -4,7 +4,7 @@
 
 RelayOps turns authorised project records into an evidence-backed employee handover. Project records are imported, privacy-filtered, stored as source passages, reconstructed into findings, and tied to exact source quotations. Contradictions and missing evidence stay visible. A human reviewer makes the decision; a project lead approves a versioned snapshot before an incoming contributor can see it.
 
-The ready-to-use Project Chronos workspace models the Round 1 fintech migration scenario with 33 synthetic records: six architecture/runbook sources, eighteen GitHub PR/issue records, a Linear task record, four Slack channel records including restricted evidence, and the original cross-source conflict example. The local deterministic workflow needs no user API credentials. Gemini extraction and private-repository import require a configured key/token.
+The ready-to-use Project Chronos workspace models the Round 1 fintech migration scenario with 33 synthetic records: six architecture/runbook sources, eighteen GitHub PR/issue records, a Linear task record, four Slack channel records including restricted evidence, and the original cross-source conflict example. The local deterministic workflow needs no user API credentials. Nebius extraction and private-repository import require a configured key/token.
 
 ## Completed features
 
@@ -19,7 +19,7 @@ The ready-to-use Project Chronos workspace models the Round 1 fintech migration 
 - Import a public GitHub README, root/docs Markdown files, recent commits and selected commit/PR diffs, issues/comments, pull requests/reviews/conversation comments/code review comments; optional private-repository token is request-only. Pagination and the returned batch are bounded (50 records maximum).
 - Redact common API credentials, bearer tokens, private keys, emails, and phone numbers before storage, using Presidio when available and deterministic scanner fallback otherwise.
 - Store sources, passages, claims, citations, graph entities/edges, review decisions, approval snapshots, and receipt acknowledgements in PostgreSQL with pgvector support.
-- Reconstruct supported facts deterministically; the Gemini/LangGraph extractor is integrated to produce structured facts, embeddings, and temporal graph edges. The seeded Chronos sources are now included in the extraction input.
+- Reconstruct supported facts deterministically; the Nebius Token Factory/LangGraph extractor is integrated to produce structured facts, embeddings, and temporal graph edges. The seeded Chronos sources are now included in the extraction input.
 - Validate every persisted citation against the exact stored passage and quoted text. Model output cannot approve or resolve a disagreement.
 - Show disagreements and evidence gaps explicitly in Verify.
 - Search embedded source passages by natural-language query with pgvector cosine similarity; the search RPC runs as the signed-in user so project membership and clearance RLS filter matches before content is returned.
@@ -32,7 +32,7 @@ The ready-to-use Project Chronos workspace models the Round 1 fintech migration 
 
 - **Web application:** Next.js 16.4.5 App Router, React 19.3.1, TypeScript 5.9.3. Server-rendered routes protect the workspace; server route handlers validate inputs with Zod and use verified Supabase sessions.
 - **Database and identity:** local Supabase stack, PostgreSQL 17, Supabase Auth, pgvector, SQL migrations, seeded synthetic users and data. RLS enforces project membership and clearance; server APIs apply matching checks.
-- **Python extractor:** FastAPI and Pydantic service with LangGraph orchestration. Presidio and deterministic scanners redact content before model use. Gemini produces structured extraction and embeddings when configured.
+- **Python extractor:** FastAPI and Pydantic service with LangGraph orchestration. Presidio and deterministic scanners redact content before model use. Nebius Token Factory uses `Qwen/Qwen3.5-397B-A17B` for extraction and `Qwen/Qwen3-Embedding-8B` for 768-dimensional embeddings; extraction is schema-validated and every citation is matched against the stored source text.
 - **GitHub ingestion:** Octokit makes paginated, bounded requests for README/docs, commits and selected file diffs, issues and comments, pull requests and changed-file diffs, reviews, conversation comments, and code review comments. Tokens are used for the request and are not persisted.
 - **Orphaned ownership heuristic:** a deterministic 14-day author-share calculation emits an evidence-gap finding above the Round 1 70% threshold only when no imported document, task, or discussion mentions that contributor; the claim cites the author’s actual imported commit messages for human investigation.
 - **Evidence integrity:** passages are persisted before claims. Citation validation checks passage membership, exact quote containment, and Unicode code-point offsets consistently across Python, TypeScript, and PostgreSQL. Query embeddings and 768-dimensional passage embeddings are compared by a bounded pgvector cosine-similarity RPC. The RPC uses `SECURITY INVOKER`, and its results remain constrained by project/source/passage RLS even if a caller requests a higher clearance. Citationless imported findings become missing evidence. Version checks prevent stale decisions; heartbeat-backed mutation locks and database write-fence triggers serialize ingestion/extraction with review/approval and reject stale mutation tokens. Approval writes an immutable versioned snapshot that is the contributor-facing source of truth.
@@ -44,7 +44,7 @@ The ready-to-use Project Chronos workspace models the Round 1 fintech migration 
 Notion Markdown / RelayOps, Linear, Slack, Discord JSON / GitHub records
   -> validate and redact
   -> persist sources and exact passages
-  -> deterministic reconstruction or optional Gemini/LangGraph extraction
+  -> deterministic reconstruction or optional Nebius/LangGraph extraction
   -> verify citations and preserve conflicts
   -> reviewer decisions and lead approval
   -> versioned approved snapshot
@@ -53,19 +53,19 @@ Notion Markdown / RelayOps, Linear, Slack, Discord JSON / GitHub records
 
 ## Changes from the Round 1 proposal
 
-The initial Round 2 build temporarily replaced the planned database, server-side access, GitHub ingestion, vector/graph storage, and LLM extractor with browser-local deterministic logic. That did not meet the Round 1 plan. This build restores the planned architecture: Supabase/PostgreSQL and RLS, server-backed persistence, GitHub imports, a privacy-filtering FastAPI/LangGraph Gemini extractor, vector/temporal graph data, and human approval. A deterministic path remains as a no-key baseline for judges; it is not presented as a substitute for the planned AI path. General-purpose workspace creation and team invitations are not implemented in Round 2.
+The initial Round 2 build temporarily replaced the planned database, server-side access, GitHub ingestion, vector/graph storage, and LLM extractor with browser-local deterministic logic. That did not meet the Round 1 plan. This build restores the planned architecture: Supabase/PostgreSQL and RLS, server-backed persistence, GitHub imports, a privacy-filtering FastAPI/LangGraph Nebius Token Factory extractor, vector/temporal graph data, and human approval. The LLM provider changed from Gemini to Nebius because the team has Nebius Token Factory credit available and chose to use it for the model and embedding workflow. A deterministic path remains as a no-key baseline for judges; it is not presented as a substitute for the planned AI path. General-purpose workspace creation and team invitations are not implemented in Round 2.
 
 <!-- page-break -->
 
 ## Known limitations / what does not work yet
 
-- Gemini accepted the configured key for its model-list endpoint and listed `gemini-3.8-flash`. A prior live extraction request returned HTTP 502, so generation and embeddings remain unverified; no generation call was repeated because quota is depleted. The extractor now logs only sanitized provider status metadata and gives actionable, non-secret error categories for the next funded attempt.
+- A live synthetic end-to-end extractor check passed with Nebius: three facts were returned, all citations passed exact-quote validation, and the source received a 768-dimensional embedding. The full 33-source Chronos corpus has not yet been run through Nebius; model latency and spend scale with imported evidence and generated output. The current Token Factory project returned 31 models at catalog check time.
 - Private GitHub repository import requires a read-only fine-grained token. The import is bounded to 50 recent records, selected diffs, and root/docs Markdown; it does not mirror the full repository or watch for later changes.
 - The public link is not deployed: static GitHub Pages cannot run these APIs. Render and hosted Supabase still need production configuration.
 - Only the seeded Project Chronos workspace and local demo accounts are supplied. Arbitrary workspaces and invitations are not included.
 - Presidio requires the extractor service; when it is unavailable, the API reports that it is using the deterministic Node redaction fallback.
 - An interrupted source/extraction request keeps approval blocked until its 15-minute mutation lease expires; retry the source import or extraction to recover and reconcile the project before reviewing.
-- Deployment is not verified. Local source, review, approval, and receipt behavior is covered by the relevant tests and application checks.
+- Deployment is not verified. Nebius inference is validated locally; hosted deployment still needs a production Token Factory key, hosted Supabase credentials, and environment configuration.
 
 ## Three planned Round 3 improvements
 
@@ -81,7 +81,7 @@ The initial Round 2 build temporarily replaced the planned database, server-side
 4. Open <http://localhost:3000>, choose **Open workspace**, and sign in as `lead@relayops.local` with password `RelayOpsDemo!2026`.
 5. Connect/import records, inspect Reconstruct and Verify, resolve or accept evidence statuses in Review, and approve the project.
 6. Sign out; sign in as `contributor@relayops.local` with the same local demo password to see the clearance-filtered approved snapshot and acknowledge receipt.
-7. Optional: configure `GEMINI_API_KEY` in ignored `.env.local`, restart both services, and run Gemini extraction from Reconstruct. Optional: import a public GitHub repository without a token.
+7. Optional: configure `NEBIUS_API_KEY` in ignored `.env.local`, restart both services, and run Nebius extraction from Reconstruct. Optional: import a public GitHub repository without a token.
 
 ## Submission links and current status
 

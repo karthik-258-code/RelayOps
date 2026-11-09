@@ -17,7 +17,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
   onExtract: () => void;
   onOpenFinding: (claimId: string) => void;
   extracting: boolean;
-  extractionMode: 'gemini' | 'deterministic';
+  extractionMode: 'nebius' | 'deterministic';
 }) {
   const categories = (Object.keys(categoryLabels) as ClaimCategory[]).map((category) => ({
     category,
@@ -46,7 +46,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
   }
 
   return <section className="stage-page reconstruct-page" aria-labelledby="reconstruct-title">
-    <div className="stage-page-heading"><div><h2 id="reconstruct-title">What the project records say</h2><p>{extractionMode === 'gemini' ? 'Gemini extracted these findings from stored passages. Every finding has a quote checked against its source; it does not decide which source is right.' : 'RelayOps groups structured observations and preserves their citations. This deterministic pass does not invent context or decide which source is right.'}</p></div><div className="stage-totals"><strong>{claims.length}</strong><span>findings formed from</span><strong>{sources.length}</strong><span>source records</span></div></div>
+    <div className="stage-page-heading"><div><h2 id="reconstruct-title">What the project records say</h2><p>{extractionMode === 'nebius' ? 'Nebius extracted these findings from stored passages. Every finding has a quote checked against its source; it does not decide which source is right.' : 'RelayOps groups structured observations and preserves their citations. This deterministic pass does not invent context or decide which source is right.'}</p></div><div className="stage-totals"><strong>{claims.length}</strong><span>findings formed from</span><strong>{sources.length}</strong><span>source records</span></div></div>
     <div className="reconstruct-body">
       <div className="category-ledger" aria-label="Findings by category">
         <div className="ledger-heading"><span>FINDING GROUPS</span><span>{claims.length} TOTAL</span></div>
@@ -64,7 +64,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
       <section className="reconstruction-panel" aria-labelledby="active-risks-title"><div className="reconstruction-panel-heading"><div><span>03 / OPEN CONTEXT</span><h3 id="active-risks-title">Active blockers &amp; risks</h3></div><strong>{blockersAndRisks.length}</strong></div>{renderFindings(blockersAndRisks, "standard")}</section>
       <section className="reconstruction-panel" aria-labelledby="next-actions-title"><div className="reconstruction-panel-heading"><div><span>04 / FOLLOW-THROUGH</span><h3 id="next-actions-title">Next actions</h3></div><strong>{nextActions.length}</strong></div>{renderFindings(nextActions, "standard")}</section>
     </div>
-    <div className="stage-page-footer"><span>{extractionMode === 'gemini' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Gemini extraction requires a configured key and available quota.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Checking citations…' : extractionMode === 'gemini' ? 'Run Gemini again' : 'Run Gemini extraction'} <span aria-hidden="true">✳</span></button>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
+    <div className="stage-page-footer"><span>{extractionMode === 'nebius' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Checking citations…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'} <span aria-hidden="true">✳</span></button>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
   </section>;
 }
 
@@ -110,16 +110,16 @@ function EvidenceSearch({ projectId }: { projectId: string }) {
       if (!response.ok) throw new Error(payload.error?.message ?? "Evidence search could not run.");
       const matches = Array.isArray(payload.results) ? payload.results as SearchResult[] : [];
       setResults(matches);
-      setStatus(matches.length ? `${matches.length} evidence passages found.` : "No matching passages yet. Check whether Gemini extraction has created embeddings.");
+      setStatus(matches.length ? `${matches.length} evidence passages found.` : "No matching passages yet. Check whether Nebius extraction has created embeddings.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Evidence search could not run."); }
     setBusy(false);
   }
 
   return <section className="evidence-search" aria-labelledby="evidence-search-title">
-    <div><h3 id="evidence-search-title">Search the source record</h3><p>Ask a question to find the closest stored passages. Results respect your project clearance and link back to their source. Requires Gemini setup and passage embeddings from Reconstruct.</p></div>
+    <div><h3 id="evidence-search-title">Search the source record</h3><p>Ask a question to find the closest stored passages. Results respect your project clearance and link back to their source. Requires Nebius Token Factory setup and passage embeddings from Reconstruct.</p></div>
     <form onSubmit={search}><label htmlFor="evidence-query">Evidence question</label><div className="evidence-search-controls"><input id="evidence-query" value={query} onChange={(event) => setQuery(event.target.value)} minLength={3} maxLength={1000} placeholder="Who owns the database migration?" required /><button className="button button-primary" disabled={busy || query.trim().length < 3}>{busy ? "Searching…" : "Search evidence"}</button></div></form>
     {status && <p className="evidence-search-status" role="status">{status}</p>}
     {results.length > 0 && <ol className="evidence-search-results">{results.map((result) => <li key={result.passage_id}><div><strong>{result.source_title}</strong><span>{Math.round(result.similarity * 100)}% semantic match{result.occurred_at ? ` · ${new Date(result.occurred_at).toLocaleDateString()}` : ""}</span></div><p>{result.passage_content}</p>{result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer">Open source record</a>}</li>)}</ol>}
-    {status.startsWith("No matching") && <p className="evidence-search-empty">Try a broader question, or check that passages have been embedded through Gemini extraction.</p>}
+    {status.startsWith("No matching") && <p className="evidence-search-empty">Try a broader question, or check that passages have been embedded through Nebius extraction.</p>}
   </section>;
 }

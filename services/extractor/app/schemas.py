@@ -66,7 +66,7 @@ class ExtractedClaim(BaseModel):
 
 
 class ExtractResponse(BaseModel):
-    extraction_mode: Literal["gemini"]
+    extraction_mode: Literal["nebius"]
     model: str
     rejected_fact_count: int
     embedding_model: str | None

@@ -21,7 +21,10 @@ $existing['NEXT_PUBLIC_SUPABASE_URL'] = $values.API_URL
 $existing['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'] = $values.PUBLISHABLE_KEY
 $existing['SUPABASE_SERVICE_ROLE_KEY'] = $values.SERVICE_ROLE_KEY
 $existing['DATABASE_URL'] = $values.DB_URL
-if (-not $existing.ContainsKey('GEMINI_API_KEY')) { $existing['GEMINI_API_KEY'] = '' }
+if (-not $existing.ContainsKey('NEBIUS_API_KEY')) { $existing['NEBIUS_API_KEY'] = '' }
+if (-not $existing.ContainsKey('NEBIUS_BASE_URL')) { $existing['NEBIUS_BASE_URL'] = 'https://api.tokenfactory.nebius.com/v1' }
+if (-not $existing.ContainsKey('NEBIUS_MODEL')) { $existing['NEBIUS_MODEL'] = 'Qwen/Qwen3.5-397B-A17B' }
+if (-not $existing.ContainsKey('NEBIUS_EMBEDDING_MODEL')) { $existing['NEBIUS_EMBEDDING_MODEL'] = 'Qwen/Qwen3-Embedding-8B' }
 if (-not $existing.ContainsKey('GITHUB_TOKEN')) { $existing['GITHUB_TOKEN'] = '' }
 if (-not $existing.ContainsKey('EXTRACTOR_URL')) { $existing['EXTRACTOR_URL'] = 'http://127.0.0.1:8000' }
 if (-not $existing['EXTRACTOR_SHARED_TOKEN']) {

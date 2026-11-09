@@ -8,7 +8,7 @@ import { matchesCodePointCitation } from '@/lib/ingestion/persisted-citations';
 export const maxDuration = 300;
 
 const resultSchema = z.object({
-  extraction_mode: z.literal('gemini'),
+  extraction_mode: z.literal('nebius'),
   model: z.string(),
   rejected_fact_count: z.number().int().nonnegative(),
   embedding_model: z.string().nullable(),
@@ -51,7 +51,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   const access = await getProjectAccess(user.id, projectId);
   if (!access) return jsonError(404, 'PROJECT_NOT_FOUND', 'This project is not available to your account.');
   if (!['lead', 'reviewer'].includes(access.role)) return jsonError(403, 'REVIEWER_REQUIRED', 'A project lead or reviewer must run extraction.');
-  if (!process.env.GEMINI_API_KEY?.trim()) return jsonError(503, 'GEMINI_NOT_CONFIGURED', 'Add GEMINI_API_KEY to the root .env.local file, then restart Next.js and the extractor.');
+  if (!process.env.NEBIUS_API_KEY?.trim()) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Add NEBIUS_API_KEY to the root .env.local file, then restart Next.js and the extractor.');
   const extractorUrl = process.env.EXTRACTOR_URL;
   const sharedToken = process.env.EXTRACTOR_SHARED_TOKEN;
   if (!extractorUrl || !sharedToken) return jsonError(503, 'EXTRACTOR_NOT_CONFIGURED', 'Local extractor settings are missing. Run scripts/setup-local-env.ps1.');
@@ -70,7 +70,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   const healthResponse = await fetch(`${extractorUrl.replace(/\/$/, '')}/health`, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }).catch(() => null);
   if (!healthResponse?.ok) return jsonError(503, 'EXTRACTOR_OFFLINE', 'Start the local extractor with services/extractor/scripts/start.ps1, then retry.');
   const health = await healthResponse.json();
-  if (!health.model_configured) return jsonError(503, 'GEMINI_NOT_CONFIGURED', 'Add GEMINI_API_KEY to the root .env.local file, then restart Next.js and the extractor.');
+  if (!health.model_configured) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Add NEBIUS_API_KEY to the root .env.local file, then restart Next.js and the extractor.');
 
   // Lock the project for this long-running extraction so approval cannot snapshot a partial write.
   return withProjectMutation(projectId, async (admin) => {
@@ -114,7 +114,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   }
   if (!extractorResponse.ok) {
     const failure = await extractorResponse.json().catch(() => ({}));
-    const detail = typeof failure.detail === 'string' ? failure.detail : 'Gemini extraction failed. Source evidence remains saved.';
+    const detail = typeof failure.detail === 'string' ? failure.detail : 'Nebius extraction failed. Source evidence remains saved.';
     return jsonError(extractorResponse.status === 429 ? 429 : extractorResponse.status >= 500 ? 502 : extractorResponse.status, 'EXTRACTION_FAILED', detail);
   }
   const rawResult: unknown = await extractorResponse.json();
@@ -208,10 +208,10 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   }
 
   return Response.json({
-    extractionMode: 'gemini', model: result.model, findings: authorizedClaims.length,
+    extractionMode: 'nebius', model: result.model, findings: authorizedClaims.length,
     rejectedFacts: result.rejected_fact_count, embeddingCount: Object.keys(result.embeddings).length,
     notices: result.notices,
-    message: `Gemini checked ${passages.length} stored passage${passages.length === 1 ? '' : 's'} and produced ${authorizedClaims.length} citation-verified finding${authorizedClaims.length === 1 ? '' : 's'}. Human review is still required.`,
+    message: `Nebius checked ${passages.length} stored passage${passages.length === 1 ? '' : 's'} and produced ${authorizedClaims.length} citation-verified finding${authorizedClaims.length === 1 ? '' : 's'}. Human review is still required.`,
   }, { status: 200, headers: { 'Cache-Control': 'no-store' } });
   });
 }

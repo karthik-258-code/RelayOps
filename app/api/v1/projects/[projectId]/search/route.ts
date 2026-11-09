@@ -16,8 +16,8 @@ export async function POST(request: Request, context: { params: Promise<{ projec
 
   const extractorUrl = process.env.EXTRACTOR_URL;
   const sharedToken = process.env.EXTRACTOR_SHARED_TOKEN;
-  if (!process.env.GEMINI_API_KEY?.trim() || !extractorUrl || !sharedToken) {
-    return jsonError(503, 'VECTOR_SEARCH_NOT_CONFIGURED', 'Evidence search needs GEMINI_API_KEY and the local extractor.');
+  if (!process.env.NEBIUS_API_KEY?.trim() || !extractorUrl || !sharedToken) {
+    return jsonError(503, 'VECTOR_SEARCH_NOT_CONFIGURED', 'Evidence search needs NEBIUS_API_KEY and the local extractor.');
   }
   let response: Response;
   try {
@@ -28,7 +28,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
   } catch {
     return jsonError(503, 'EXTRACTOR_OFFLINE', 'Start the local extractor, then retry evidence search.');
   }
-  if (!response.ok) return jsonError(502, 'QUERY_EMBEDDING_FAILED', 'Gemini could not prepare this evidence search.');
+  if (!response.ok) return jsonError(502, 'QUERY_EMBEDDING_FAILED', 'Nebius could not prepare this evidence search.');
   const embedding = embeddingSchema.safeParse(await response.json().catch(() => null));
   if (!embedding.success) return jsonError(502, 'INVALID_QUERY_EMBEDDING', 'The extractor returned an invalid search vector.');
 

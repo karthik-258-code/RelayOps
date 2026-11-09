@@ -1,23 +1,13 @@
 import asyncio
 
-from google.genai import types
-
-from app.pipeline import EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, _client
+from app.nebius import create_client, generate_embeddings
 
 
 async def embed_query_text(query: str, *, client=None) -> list[float]:
-    provider = client or _client()
-    response = await asyncio.to_thread(
-        provider.models.embed_content,
-        model=EMBEDDING_MODEL,
-        contents=query,
-        config=types.EmbedContentConfig(
-            output_dimensionality=EMBEDDING_DIMENSIONS,
-            task_type="RETRIEVAL_QUERY",
-        ),
-    )
-    embeddings = response.embeddings or []
-    values = getattr(embeddings[0], "values", None) if embeddings else None
-    if not values or len(values) != EMBEDDING_DIMENSIONS:
-        raise RuntimeError("Gemini returned an invalid evidence-search embedding.")
-    return list(values)
+    provider = client or create_client()
+    try:
+        vectors = await asyncio.to_thread(generate_embeddings, provider, [query])
+        return vectors[0]
+    finally:
+        if client is None:
+            provider.close()

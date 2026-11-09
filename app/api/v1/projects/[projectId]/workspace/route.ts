@@ -121,6 +121,6 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
     ...(currentReceipt ? { acknowledgedAt: currentReceipt.acknowledged_at } : {}),
     importedNames: sources.filter((source) => (source.metadata as Record<string, unknown>).relayops_import === true).map((source) => source.title),
   };
-  const extractionMode = claims.some((claim) => claim.extraction_run_id) ? 'gemini' : 'deterministic';
+  const extractionMode = claims.some((claim) => claim.extraction_run_id) ? 'nebius' : 'deterministic';
   return Response.json({ project: { id: project.id, name: project.name, description: project.description, slug: project.slug, revision: project.revision }, access, state, snapshotId: approvedSnapshot?.id ?? null, snapshotVersion: approvedSnapshot?.version ?? null, claimVersions: Object.fromEntries(claims.map((claim) => [claim.id, claim.version])), handoverReady: Boolean(approvedSnapshot), extractionMode }, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -33,7 +33,7 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
   const [claimVersions, setClaimVersions] = useState<Record<string, number>>({});
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [handoverReady, setHandoverReady] = useState(false);
-  const [extractionMode, setExtractionMode] = useState<'gemini' | 'deterministic'>('deterministic');
+  const [extractionMode, setExtractionMode] = useState<'nebius' | 'deterministic'>('deterministic');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
       setClaimVersions(payload.claimVersions as Record<string, number>);
       setSnapshotId(payload.snapshotId as string | null);
       setHandoverReady(Boolean(payload.handoverReady));
-      setExtractionMode(payload.extractionMode === 'gemini' ? 'gemini' : 'deterministic');
+      setExtractionMode(payload.extractionMode === 'nebius' ? 'nebius' : 'deterministic');
       if (firstLoad) {
         setSelectedId(payload.state.claims[0]?.id ?? '');
         setActiveStage(accessRole === 'contributor' ? 4 : 0);
@@ -133,10 +133,10 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
     try {
       const response = await fetch(`/api/v1/projects/${projectId}/extract`, { method: 'POST' });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error?.message ?? 'Gemini extraction could not run.');
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Nebius extraction could not run.');
       await refreshWorkspace();
       setStorageNotice(`${payload.message}${payload.notices?.length ? ` ${payload.notices.join(' ')}` : ''}`);
-    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Gemini extraction failed.'); }
+    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Nebius extraction failed.'); }
     finally { setBusy(false); }
   }
 

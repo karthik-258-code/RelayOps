@@ -10,7 +10,7 @@ from app.pipeline import EMBEDDING_MODEL, MODEL_NAME, run_extraction
 from app.embeddings import embed_query_text
 from app.privacy import PRESIDIO_READY, redact_sensitive_content
 from app.schemas import ExtractRequest, ExtractResponse
-from app.provider_errors import classify_gemini_failure, safe_provider_metadata
+from app.provider_errors import classify_nebius_failure, safe_provider_metadata
 
 app = FastAPI(title="RelayOps Evidence Extractor", version="1.0.0", docs_url=None, redoc_url=None)
 logger = logging.getLogger("relayops.extractor")
@@ -59,7 +59,8 @@ def require_internal_key(x_relayops_extractor_key: Annotated[str | None, Header(
 def health():
     return {
         "status": "ok",
-        "model_configured": bool(os.getenv("GEMINI_API_KEY", "").strip()),
+        "model_configured": bool(os.getenv("NEBIUS_API_KEY", "").strip()),
+        "provider": "nebius",
         "model": MODEL_NAME,
         "embedding_model": EMBEDDING_MODEL,
         "presidio_ready": PRESIDIO_READY,
@@ -92,16 +93,16 @@ def redact(request: RedactionRequest):
 
 @app.post("/extract", response_model=ExtractResponse, dependencies=[Depends(require_internal_key)])
 async def extract(request: ExtractRequest):
-    if not os.getenv("GEMINI_API_KEY", "").strip():
-        raise HTTPException(status_code=503, detail="Gemini is not configured. Add GEMINI_API_KEY to .env.local and restart the extractor.")
+    if not os.getenv("NEBIUS_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to .env.local and restart the extractor.")
     total_chars = sum(len(passage.content) for passage in request.passages)
     if total_chars > 200_000:
         raise HTTPException(status_code=413, detail="Limit one extraction to 200,000 characters. Split the source set and retry.")
     try:
         result = await run_extraction(request)
     except Exception as error:
-        failure_status, safe_detail, _provider_status = classify_gemini_failure(error)
-        logger.warning("Gemini extraction failed: %s", safe_provider_metadata(error))
+        failure_status, safe_detail, _provider_status = classify_nebius_failure(error)
+        logger.warning("Nebius extraction failed: %s", safe_provider_metadata(error))
         raise HTTPException(status_code=failure_status, detail=safe_detail) from None
 
     claims = result.get("claims", [])
@@ -113,7 +114,7 @@ async def extract(request: ExtractRequest):
     if not claims:
         notices.append("No cited handover facts were extracted. Source records remain available for human review.")
     return ExtractResponse(
-        extraction_mode="gemini",
+        extraction_mode="nebius",
         model=MODEL_NAME,
         rejected_fact_count=rejected,
         embedding_model=EMBEDDING_MODEL if embeddings else None,
@@ -128,11 +129,11 @@ async def extract(request: ExtractRequest):
 
 @app.post("/embed-query", dependencies=[Depends(require_internal_key)])
 async def embed_query(request: EmbedQueryRequest):
-    if not os.getenv("GEMINI_API_KEY", "").strip():
-        raise HTTPException(status_code=503, detail="Gemini is not configured. Add GEMINI_API_KEY to .env.local and restart the extractor.")
+    if not os.getenv("NEBIUS_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to .env.local and restart the extractor.")
     safe_query = redact_sensitive_content(request.query)
     try:
         vector = await embed_query_text(safe_query)
     except Exception:
-        raise HTTPException(status_code=502, detail="Gemini could not prepare this evidence search. No search was run.") from None
+        raise HTTPException(status_code=502, detail="Nebius could not prepare this evidence search. No search was run.") from None
     return {"embedding": vector, "model": EMBEDDING_MODEL}

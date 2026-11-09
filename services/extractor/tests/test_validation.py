@@ -6,20 +6,10 @@ from app.schemas import ExtractionEnvelope
 
 
 class CitationValidationTests(unittest.TestCase):
-    def test_extraction_uses_low_gemini_thinking_level_for_bounded_latency(self):
-        from app.pipeline import build_extraction_config
-
-        self.assertEqual(build_extraction_config().thinking_config.thinking_level.value, "LOW")
-
-    def test_gemini_response_schema_omits_unsupported_additional_properties(self):
-        def contains_additional_properties(value):
-            if isinstance(value, dict):
-                return "additionalProperties" in value or any(contains_additional_properties(item) for item in value.values())
-            if isinstance(value, list):
-                return any(contains_additional_properties(item) for item in value)
-            return False
-
-        self.assertFalse(contains_additional_properties(ExtractionEnvelope.model_json_schema()))
+    def test_extraction_contract_has_a_single_facts_collection(self):
+        schema = ExtractionEnvelope.model_json_schema()
+        self.assertIn("facts", schema["properties"])
+        self.assertEqual(schema["required"], ["facts"])
 
     def test_accepts_exact_quote_and_calculates_offsets(self):
         passages = {"p-1": {"content": "The migration ships on Friday.", "clearance": 2}}
