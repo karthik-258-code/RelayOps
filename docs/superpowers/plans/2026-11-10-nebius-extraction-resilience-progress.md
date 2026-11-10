@@ -73,9 +73,9 @@
 - Create: `tests/extraction-progress.test.ts`
 
 **Interfaces:**
-- Produces: `ExtractionProgressEvent`, `ExtractionCompletionSummary`, and `ExtractionTerminalEvent` in `lib/extraction/progress.ts`. Progress carries a stage, safe message, optional batch index/total, elapsed seconds, and optional heartbeat flag. Terminal success carries the existing summary fields; failure carries a safe code/message.
+- Produces: `ExtractionProgressEvent`, `ExtractionCompletionSummary`, and `ExtractionTerminalEvent` in `lib/extraction/progress.ts`. Progress carries a stage, safe message, optional active batch index/total, completed batch count, elapsed seconds, and optional heartbeat flag. Terminal success carries the existing summary fields; failure carries a safe code/message.
 - Produces: `encodeExtractionEvent(event): Uint8Array` and `consumeExtractionEventStream(response, onProgress): Promise<ExtractionTerminalEvent>` in `lib/extraction/progress.ts`.
-- Produces: `createBatchProgressReporter(initialTotal, report)` in `lib/extraction/progress.ts`, with `start(message)`, `split(replacementCount, message)`, `complete(message)`, and `snapshot()` methods; total grows only when a real timeout split replaces a pending batch.
+- Produces: `createBatchProgressReporter(initialTotal, report)` in `lib/extraction/progress.ts`, with `start(message)`, `split(replacementCount, message)`, `complete(message)`, and `snapshot()` methods; total grows only when a real timeout split replaces a pending batch, and `completedBatches` advances only after a validated batch response.
 - Produces: `createExtractionProgressStream(run, options?)` in `lib/server/extraction-progress-stream.ts`; `run` receives a bounded progress reporter and resolves to `ExtractionTerminalEvent`. The helper emits heartbeats and stops enqueuing after disconnect while awaiting `run` to settle.
 - Consumes: existing `extractBatch`, `splitExtractionBatch`, `withProjectMutation`, `jsonError`, and extraction response schemas.
 
