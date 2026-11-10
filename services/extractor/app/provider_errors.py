@@ -3,6 +3,10 @@ from typing import Any
 
 def classify_nebius_failure(error: Exception) -> tuple[int, str, int | str | None]:
     """Return actionable client detail without exposing provider messages or source text."""
+    if type(error).__name__ == "ModelOutputTruncatedError":
+        return 502, "Nebius reached its structured-output limit for this batch. Retry after narrowing the source set.", None
+    if type(error).__name__ in {"APITimeoutError", "TimeoutError"}:
+        return 504, "Nebius did not finish this extraction batch within 4 minutes. Imported sources remain saved; retry when the service is responsive.", None
     response = getattr(error, "response", None)
     raw_status = getattr(error, "status_code", None) or getattr(response, "status_code", None) or getattr(error, "code", None)
     status: int | str | None = raw_status if isinstance(raw_status, (int, str)) else None
@@ -17,7 +21,9 @@ def classify_nebius_failure(error: Exception) -> tuple[int, str, int | str | Non
     if status == 404 or normalized == "NOT_FOUND":
         return 502, "The configured Nebius model is unavailable. Check NEBIUS_MODEL or NEBIUS_EMBEDDING_MODEL against the account catalog.", status
     if status == 429 or normalized in {"RESOURCE_EXHAUSTED", "RATE_LIMIT_EXCEEDED"} or code in {"RESOURCE_EXHAUSTED", "RATE_LIMIT_EXCEEDED"}:
-        return 429, "Nebius rate limit reached. Wait for the limit to reset before retrying.", status
+        return 429, "Nebius rate limited this extraction after automatic retries. Wait briefly for the limit to reset, then retry; imported sources remain saved.", status
+    if isinstance(status, int) and status >= 500:
+        return 503, "Nebius was temporarily unavailable after automatic retries. Imported sources remain saved; wait briefly and retry.", status
     if status in {400, 422} or normalized == "INVALID_ARGUMENT":
         return 502, "Nebius rejected the extraction request or response format. Check model compatibility and structured JSON support.", status
     return 502, "Nebius extraction failed. Imported source records remain available for manual review.", status

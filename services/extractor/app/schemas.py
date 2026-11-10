@@ -27,6 +27,14 @@ class ExtractRequest(BaseModel):
     passages: list[Passage] = Field(min_length=1, max_length=100)
 
 
+class ExtractJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = Field(min_length=1, max_length=80)
+    clearance: int = Field(ge=1, le=3)
+    passage_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class CitationReference(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 

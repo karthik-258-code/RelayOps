@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { groupReviewHistory } from '@/lib/domain/review-history';
+import { chunkValues } from '@/lib/utils/chunk-values';
 import type { Claim, ClaimCategory, ClaimReview, EvidenceStatus, HandoverState, SourceKind, SourceRecord } from '@/lib/domain/types';
 
 const projectIdSchema = z.uuid();
@@ -44,14 +45,14 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
   const claims = claimResult.data ?? [];
   const sourceIds = sources.map((source) => source.id);
   const claimIds = claims.map((claim) => claim.id);
-  const [passageResult, citationResult, reviewResult] = await Promise.all([
-    sourceIds.length ? admin.from('source_passages').select('id,source_id,content,clearance').eq('project_id', projectId).in('source_id', sourceIds).lte('clearance', access.clearance) : Promise.resolve({ data: [], error: null }),
-    claimIds.length ? admin.from('citations').select('id,claim_id,passage_id,quote,relation').eq('project_id', projectId).in('claim_id', claimIds) : Promise.resolve({ data: [], error: null }),
-    claimIds.length ? admin.from('review_decisions').select('id,claim_id,user_id,decision,edited_statement,note,claim_version,created_at').eq('project_id', projectId).in('claim_id', claimIds).order('created_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
+  const [passageResults, citationResults, reviewResults] = await Promise.all([
+    Promise.all(chunkValues(sourceIds, 50).map((ids) => admin.from('source_passages').select('id,source_id,content,clearance').eq('project_id', projectId).in('source_id', ids).lte('clearance', access.clearance))),
+    Promise.all(chunkValues(claimIds, 50).map((ids) => admin.from('citations').select('id,claim_id,passage_id,quote,relation').eq('project_id', projectId).in('claim_id', ids))),
+    Promise.all(chunkValues(claimIds, 50).map((ids) => admin.from('review_decisions').select('id,claim_id,user_id,decision,edited_statement,note,claim_version,created_at').eq('project_id', projectId).in('claim_id', ids).order('created_at', { ascending: false }))),
   ]);
-  if (passageResult.error || citationResult.error || reviewResult.error) return jsonError(503, 'DATABASE_UNAVAILABLE', 'RelayOps could not load source evidence. Retry in a moment.');
+  if ([...passageResults, ...citationResults, ...reviewResults].some((result) => result.error)) return jsonError(503, 'DATABASE_UNAVAILABLE', 'RelayOps could not load source evidence. Retry in a moment.');
 
-  const passages = passageResult.data ?? [];
+  const passages = passageResults.flatMap((result) => result.data ?? []);
   const passageById = new Map(passages.map((passage) => [passage.id, passage]));
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const sourceRecords: SourceRecord[] = sources.map((source) => {
@@ -68,7 +69,7 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
       observations: [],
     };
   });
-  const citationRows = citationResult.data ?? [];
+  const citationRows = citationResults.flatMap((result) => result.data ?? []);
   const domainClaims: Claim[] = claims.map((claim) => {
     const citations = citationRows.filter((citation) => citation.claim_id === claim.id).flatMap((citation) => {
       const passage = passageById.get(citation.passage_id);
@@ -99,7 +100,7 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
     };
   });
   const reviews: Record<string, ClaimReview> = Object.fromEntries(domainClaims.map((claim) => [claim.id, { disposition: 'pending' }]));
-  const rawReviewRows = reviewResult.data ?? [];
+  const rawReviewRows = reviewResults.flatMap((result) => result.data ?? []);
   const reviewerIds = access.role === 'contributor' ? [] : [...new Set(rawReviewRows.map((row) => row.user_id))];
   const [profileResult, memberResult] = reviewerIds.length ? await Promise.all([
     admin.from('profiles').select('user_id,display_name').in('user_id', reviewerIds),

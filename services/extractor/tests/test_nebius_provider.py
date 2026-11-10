@@ -15,8 +15,8 @@ class NebiusProviderTests(unittest.TestCase):
         openai_client.assert_called_once_with(
             api_key="test-nebius-key",
             base_url="https://api.tokenfactory.nebius.com/v1",
-            timeout=90,
-            max_retries=0,
+            timeout=240,
+            max_retries=2,
         )
 
     def test_client_fails_closed_when_nebius_key_is_missing(self):
@@ -25,6 +25,36 @@ class NebiusProviderTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(RuntimeError, "NEBIUS_API_KEY"):
                 create_client()
+
+    def test_chat_generation_retries_transient_provider_errors(self):
+        import httpx
+        from openai import OpenAI
+        from app.nebius import generate_json
+
+        attempts = 0
+
+        def respond(request):
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                return httpx.Response(503, headers={"retry-after-ms": "0"}, json={"error": "temporary outage"}, request=request)
+            return httpx.Response(200, json={
+                "id": "test-completion", "object": "chat.completion", "created": 1, "model": "test/model",
+                "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": '{"facts": []}'}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }, request=request)
+
+        client = OpenAI(
+            api_key="test-nebius-key", base_url="https://api.tokenfactory.nebius.com/v1",
+            max_retries=2, http_client=httpx.Client(transport=httpx.MockTransport(respond)),
+        )
+        try:
+            content = generate_json(client, "Extract facts", model="test/model")
+        finally:
+            client.close()
+
+        self.assertEqual(content, '{"facts": []}')
+        self.assertEqual(attempts, 3)
 
     def test_chat_generation_requests_json_and_returns_model_content(self):
         from app.nebius import generate_json
@@ -40,6 +70,22 @@ class NebiusProviderTests(unittest.TestCase):
         self.assertEqual(create.call_args.kwargs["model"], "test/model")
         self.assertEqual(create.call_args.kwargs["response_format"], {"type": "json_object"})
         self.assertEqual(create.call_args.kwargs["temperature"], 0)
+
+    def test_chat_generation_reports_truncated_json_without_returning_partial_content(self):
+        from app.nebius import generate_json
+
+        message = SimpleNamespace(content='{"facts": [')
+        choice = SimpleNamespace(message=message, finish_reason="length")
+        response = SimpleNamespace(choices=[choice], usage=SimpleNamespace(completion_tokens=8192))
+        create = unittest.mock.Mock(return_value=response)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+        with self.assertRaisesRegex(RuntimeError, "token limit") as failure:
+            generate_json(client, "Extract facts", model="test/model")
+
+        self.assertNotIn('"facts"', str(failure.exception))
+        self.assertEqual(failure.exception.completion_tokens, 8192)
+        self.assertEqual(failure.exception.content_length, 11)
 
     def test_embeddings_request_uses_persisted_vector_dimension(self):
         from app.nebius import EMBEDDING_DIMENSIONS, generate_embeddings

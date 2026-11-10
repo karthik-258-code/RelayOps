@@ -1,6 +1,7 @@
 import hmac
 import logging
 import os
+import asyncio
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -9,8 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.pipeline import EMBEDDING_MODEL, MODEL_NAME, run_extraction
 from app.embeddings import embed_query_text
 from app.privacy import PRESIDIO_READY, redact_sensitive_content
-from app.schemas import ExtractRequest, ExtractResponse
+from app.schemas import ExtractResponse, ExtractJobRequest
 from app.provider_errors import classify_nebius_failure, safe_provider_metadata
+from app.passage_loader import PassageLoadError, fetch_stored_passages
 
 app = FastAPI(title="RelayOps Evidence Extractor", version="1.0.0", docs_url=None, redoc_url=None)
 logger = logging.getLogger("relayops.extractor")
@@ -47,7 +49,7 @@ class RedactionSource(BaseModel):
 
 class RedactionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    sources: list[RedactionSource] = Field(min_length=1, max_length=10)
+    sources: list[RedactionSource] = Field(min_length=1, max_length=50)
 
 
 class EmbedQueryRequest(BaseModel):
@@ -100,9 +102,20 @@ def redact(request: RedactionRequest):
 
 
 @app.post("/extract", response_model=ExtractResponse, dependencies=[Depends(require_internal_key)])
-async def extract(request: ExtractRequest):
+async def extract(job: ExtractJobRequest):
     if not os.getenv("NEBIUS_API_KEY", "").strip():
         raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to the extractor service and restart it.")
+    relayops_web_url = os.getenv("RELAYOPS_WEB_URL", "")
+    shared_token = os.getenv("EXTRACTOR_SHARED_TOKEN", "")
+    try:
+        request = await asyncio.to_thread(fetch_stored_passages, job, relayops_web_url, shared_token)
+    except PassageLoadError as error:
+        logger.warning("Stored passage callback failed: %s", error.code)
+        if error.code == "callback_unauthorized":
+            raise HTTPException(status_code=502, detail="RelayOps rejected the extractor callback. Check that both services use the same internal key.") from None
+        if error.code == "extraction_batch_too_large":
+            raise HTTPException(status_code=413, detail="This import exceeds the 200,000-character extraction limit. Narrow the source set and retry.") from None
+        raise HTTPException(status_code=502, detail="RelayOps could not return the requested stored passages. Check the web service and callback configuration, then retry.") from None
     total_chars = sum(len(passage.content) for passage in request.passages)
     if total_chars > 200_000:
         raise HTTPException(status_code=413, detail="Limit one extraction to 200,000 characters. Split the source set and retry.")

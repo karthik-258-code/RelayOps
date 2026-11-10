@@ -1,10 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { buildExtractionBatches, buildExtractorRequest, EXTRACTOR_REQUEST_TIMEOUT_MS, splitExtractionBatch } from '@/lib/extraction/request';
+import { mergeExtractionResults } from '@/lib/extraction/merge';
+import { reconcileExtractedEntities } from '@/lib/extraction/entities';
+import { createBatchProgressReporter, type ExtractionCompletionSummary, type ExtractionProgressEvent, type ExtractionTerminalEvent } from '@/lib/extraction/progress';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
+import { createExtractionProgressStream } from '@/lib/server/extraction-progress-stream';
 import { waitForExtractorHealth } from '@/lib/server/extractor-health';
 import { withProjectMutation } from '@/lib/server/project-mutation';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { matchesCodePointCitation } from '@/lib/ingestion/persisted-citations';
+import { chunkValues } from '@/lib/utils/chunk-values';
 
 export const maxDuration = 300;
 
@@ -45,7 +51,70 @@ function stableUuid(value: string) {
 }
 function sha256(value: string) { return createHash('sha256').update(value).digest('hex'); }
 
-export async function POST(_request: Request, context: { params: Promise<{ projectId: string }> }) {
+type ExtractionResult = z.infer<typeof resultSchema>;
+type BatchAttempt = { results: ExtractionResult[]; error?: never } | { results?: never; error: Response };
+type BatchProgressReporter = ReturnType<typeof createBatchProgressReporter>;
+
+async function extractBatch(
+  batch: Array<{ id: string }>,
+  projectId: string,
+  clearance: 1 | 2 | 3,
+  extractorUrl: string,
+  sharedToken: string,
+  batchProgress: BatchProgressReporter,
+): Promise<BatchAttempt> {
+  const batchNumber = batchProgress.snapshot().completed + 1;
+  batchProgress.start(`Sending extraction batch ${batchNumber} of ${batchProgress.snapshot().total} to Nebius.`);
+  let response: Response;
+  try {
+    response = await fetch(`${extractorUrl.replace(/\/$/, '')}/extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-RelayOps-Extractor-Key': sharedToken },
+      body: JSON.stringify(buildExtractorRequest(projectId, clearance, batch.map((passage) => passage.id))),
+      signal: AbortSignal.timeout(EXTRACTOR_REQUEST_TIMEOUT_MS),
+      cache: 'no-store',
+    });
+  } catch {
+    return { error: jsonError(502, 'EXTRACTOR_UNAVAILABLE', 'The extractor stopped responding. Source evidence is saved, but this revision needs review before handover.') };
+  }
+
+  if (response.status === 504) {
+    const smallerBatches = splitExtractionBatch(batch);
+    if (smallerBatches) {
+      console.warn('Nebius extraction batch timed out; retrying with smaller passage groups.', { passageCount: batch.length });
+      batchProgress.split(smallerBatches.length, `A slow batch is being split into ${smallerBatches.length} smaller requests.`);
+      const results: ExtractionResult[] = [];
+      for (const smallerBatch of smallerBatches) {
+        const attempt = await extractBatch(smallerBatch, projectId, clearance, extractorUrl, sharedToken, batchProgress);
+        if (attempt.error) return attempt;
+        results.push(...attempt.results);
+      }
+      return { results };
+    }
+  }
+
+  if (!response.ok) {
+    const failure = await response.json().catch(() => ({}));
+    const detail = typeof failure.detail === 'string' ? failure.detail : 'Nebius extraction failed. Source evidence remains saved.';
+    return { error: jsonError(response.status === 429 ? 429 : response.status >= 500 ? 502 : response.status, 'EXTRACTION_FAILED', detail) };
+  }
+
+  const parsed = resultSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    const issues = parsed.error.issues.slice(0, 8).map((issue) => ({
+      code: issue.code,
+      path: issue.path.filter((part): part is string => typeof part === 'string').slice(0, 6),
+    }));
+    console.error('Extractor response failed validation:', issues);
+    const field = issues[0]?.path.join('.') || 'response';
+    return { error: jsonError(502, 'INVALID_EXTRACTOR_RESPONSE', `The extractor response failed validation at ${field}; no model claims were saved.`) };
+  }
+  const completedBatch = batchProgress.snapshot().completed + 1;
+  batchProgress.complete(`Completed extraction batch ${completedBatch} of ${batchProgress.snapshot().total}.`);
+  return { results: [parsed.data] };
+}
+
+export async function POST(request: Request, context: { params: Promise<{ projectId: string }> }) {
   const user = await requireUser();
   if (!user) return jsonError(401, 'UNAUTHENTICATED', 'Sign in before running AI extraction.');
   const { projectId } = await context.params;
@@ -57,6 +126,10 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   const sharedToken = process.env.EXTRACTOR_SHARED_TOKEN;
   if (!extractorUrl || !sharedToken) return jsonError(503, 'EXTRACTOR_NOT_CONFIGURED', 'Local extractor settings are missing. Run scripts/setup-local-env.ps1.');
 
+  const performExtraction = async (report?: (event: ExtractionProgressEvent) => void): Promise<Response> => {
+  const emit = report ?? (() => {});
+  emit({ type: 'progress', stage: 'preparing', message: 'Preparing imported evidence for extraction.' });
+  emit({ type: 'progress', stage: 'loading_evidence', message: 'Loading saved source passages for this project.' });
   const admin = createSupabaseAdminClient();
   let { data: sources, error: sourceError } = await admin.from('sources')
     .select('id,title,url,provider,author,occurred_at,clearance')
@@ -68,6 +141,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
     .eq('project_id', projectId).in('source_id', sources.map((source) => source.id)).lte('clearance', access.clearance).order('passage_index');
   if (passageError || !passages?.length) return jsonError(409, 'NO_STORED_PASSAGES', 'This project has no stored source passages to extract.');
 
+  emit({ type: 'progress', stage: 'checking_extractor', message: 'Checking Nebius extractor readiness.' });
   const healthUrl = `${extractorUrl.replace(/\/$/, '')}/health`;
   const healthResponse = await waitForExtractorHealth(
     () => fetch(healthUrl, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }),
@@ -78,6 +152,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
 
   // Lock the project for this long-running extraction so approval cannot snapshot a partial write.
   return withProjectMutation(projectId, async (admin) => {
+  emit({ type: 'progress', stage: 'loading_evidence', message: 'Reloading saved passages under the project lock.' });
   // Re-read after acquiring the lock: an import may have completed between preflight and lock acquisition.
   const freshSources = await admin.from('sources')
     .select('id,title,url,provider,author,occurred_at,clearance')
@@ -92,39 +167,18 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   passages = freshPassages.data;
 
   const sourceById = new Map(sources.map((source) => [source.id, source]));
-  const requestPayload = {
-    project_id: projectId,
-    passages: passages.map((passage) => {
-      const source = sourceById.get(passage.source_id)!;
-      return {
-        passage_id: passage.id, source_id: source.id, source_title: source.title,
-        provider: source.provider, url: source.url, author: source.author,
-        occurred_at: source.occurred_at, clearance: Math.max(source.clearance, passage.clearance),
-        content: passage.content,
-      };
-    }),
-  };
-  let extractorResponse: Response;
-  try {
-    extractorResponse = await fetch(`${extractorUrl.replace(/\/$/, '')}/extract`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-RelayOps-Extractor-Key': sharedToken },
-      body: JSON.stringify(requestPayload),
-      signal: AbortSignal.timeout(240_000),
-      cache: 'no-store',
-    });
-  } catch {
-    return jsonError(502, 'EXTRACTOR_UNAVAILABLE', 'The extractor stopped responding. Source evidence is saved, but this revision needs review before handover.');
+  let extractionBatches: Array<typeof passages[number]>[];
+  try { extractionBatches = buildExtractionBatches(passages); }
+  catch { return jsonError(413, 'EXTRACTION_BATCH_TOO_LARGE', 'A stored passage exceeds the extraction size limit. Narrow the source set and retry.'); }
+  const batchResults: ExtractionResult[] = [];
+  const batchProgress = createBatchProgressReporter(extractionBatches.length, emit);
+  for (const batch of extractionBatches) {
+    const attempt = await extractBatch(batch, projectId, access.clearance, extractorUrl, sharedToken, batchProgress);
+    if (attempt.error) return attempt.error;
+    batchResults.push(...attempt.results);
   }
-  if (!extractorResponse.ok) {
-    const failure = await extractorResponse.json().catch(() => ({}));
-    const detail = typeof failure.detail === 'string' ? failure.detail : 'Nebius extraction failed. Source evidence remains saved.';
-    return jsonError(extractorResponse.status === 429 ? 429 : extractorResponse.status >= 500 ? 502 : extractorResponse.status, 'EXTRACTION_FAILED', detail);
-  }
-  const rawResult: unknown = await extractorResponse.json();
-  const parsed = resultSchema.safeParse(rawResult);
-  if (!parsed.success) return jsonError(502, 'INVALID_EXTRACTOR_RESPONSE', 'The extractor returned an unsupported response; no model claims were saved.');
-  const result = parsed.data;
+  const result = mergeExtractionResults(batchResults);
+  emit({ type: 'progress', stage: 'validating_citations', message: 'Checking every model quote against its stored passage.' });
   const passageById = new Map(passages.map((passage) => [passage.id, passage]));
   const authorizedClaims = result.claims.flatMap((claim) => {
     const resolvedCitations = claim.citations.flatMap((citation) => {
@@ -139,6 +193,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
     return [{ ...claim, clearance: Math.max(...resolvedCitations.map((citation) => citation.clearance)), citations: resolvedCitations }];
   });
 
+  emit({ type: 'progress', stage: 'saving_findings', message: 'Saving privacy-filtered evidence and validated findings.' });
   // Store the same Presidio-redacted text that citations and embeddings were derived from.
   for (const passage of passages) {
     const redactedContent = result.redacted_passages[passage.id];
@@ -187,24 +242,45 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
     if (citationsError) return jsonError(503, 'CITATION_SAVE_FAILED', 'A source quote did not pass PostgreSQL citation validation.');
   }
 
-  if (result.entities.length) {
-    const entities = result.entities.filter((entity) => entity.clearance <= access.clearance).map((entity) => ({ ...entity, project_id: projectId }));
-    if (entities.length) {
-      const { error } = await admin.from('entities').upsert(entities, { onConflict: 'project_id,canonical_name,entity_type' });
-      if (error) return jsonError(503, 'GRAPH_SAVE_FAILED', 'Extracted entities could not be saved.');
-    }
+  const extractedEntities = result.entities.filter((entity) => entity.clearance <= access.clearance);
+  const storedEntities = await admin.from('entities')
+    .select('id,canonical_name,entity_type,clearance')
+    .eq('project_id', projectId);
+  if (storedEntities.error) return jsonError(503, 'GRAPH_SAVE_FAILED', 'Existing graph entities could not be loaded.');
+  const entityResolution = reconcileExtractedEntities(extractedEntities, storedEntities.data ?? []);
+  for (const update of entityResolution.clearanceUpdates) {
+    const { error } = await admin.from('entities').update({ clearance: update.clearance }).eq('id', update.id).eq('project_id', projectId);
+    if (error) return jsonError(503, 'GRAPH_SAVE_FAILED', 'Existing entity clearance could not be refreshed.');
+  }
+  if (entityResolution.entitiesToInsert.length) {
+    const { error } = await admin.from('entities').insert(entityResolution.entitiesToInsert.map((entity) => ({ ...entity, project_id: projectId })));
+    if (error) return jsonError(503, 'GRAPH_SAVE_FAILED', 'Extracted entities could not be saved.');
   }
   const passageIds = passages.map((passage) => passage.id);
-  const { error: deleteError } = await admin.from('entity_edges').delete().eq('project_id', projectId).in('source_passage_id', passageIds);
-  if (deleteError) return jsonError(503, 'GRAPH_SAVE_FAILED', 'Old temporal relationships could not be refreshed.');
+  for (const passageIdBatch of chunkValues(passageIds, 50)) {
+    const { error: deleteError } = await admin.from('entity_edges').delete().eq('project_id', projectId).in('source_passage_id', passageIdBatch);
+    if (deleteError) {
+      console.error('Entity-edge refresh failed:', { code: deleteError.code, message: deleteError.message });
+      return jsonError(503, 'GRAPH_SAVE_FAILED', 'Old temporal relationships could not be refreshed.');
+    }
+  }
   if (result.edges.length) {
-    const edges = result.edges.filter((edge) => edge.clearance <= access.clearance && passageById.has(edge.source_passage_id)).map((edge) => ({ ...edge, project_id: projectId }));
+    const edges = result.edges.flatMap((edge) => {
+      if (edge.clearance > access.clearance || !passageById.has(edge.source_passage_id)) return [];
+      const fromEntityId = entityResolution.incomingToStoredId.get(edge.from_entity_id);
+      const toEntityId = entityResolution.incomingToStoredId.get(edge.to_entity_id);
+      if (!fromEntityId || !toEntityId) return [];
+      return [{ ...edge, from_entity_id: fromEntityId, to_entity_id: toEntityId, project_id: projectId }];
+    });
     if (edges.length) {
       const { error } = await admin.from('entity_edges').upsert(edges, { onConflict: 'id' });
       if (error) return jsonError(503, 'GRAPH_SAVE_FAILED', 'Temporal relationships could not be saved.');
     }
   }
 
+  emit({ type: 'progress', stage: 'saving_embeddings', message: Object.keys(result.embeddings).length
+    ? 'Saving passage embeddings for evidence search.'
+    : 'No passage embeddings were returned; finishing the saved findings.' });
   for (const [passageId, vector] of Object.entries(result.embeddings)) {
     if (!passageById.has(passageId) || vector.length !== 768 || vector.some((value) => !Number.isFinite(value))) continue;
     const { error } = await admin.from('source_passages').update({ embedding: `[${vector.join(',')}]`, embedding_model: result.embedding_model }).eq('id', passageId).eq('project_id', projectId);
@@ -218,4 +294,30 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
     message: `Nebius checked ${passages.length} stored passage${passages.length === 1 ? '' : 's'} and produced ${authorizedClaims.length} citation-verified finding${authorizedClaims.length === 1 ? '' : 's'}. Human review is still required.`,
   }, { status: 200, headers: { 'Cache-Control': 'no-store' } });
   });
+  };
+
+  if (request.headers.get('accept')?.toLowerCase().includes('text/event-stream')) {
+    return createExtractionProgressStream(async (report) => {
+      const response = await performExtraction(report);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const failure = body?.error && typeof body.error === 'object' ? body.error as { code?: unknown; message?: unknown } : {};
+        const code = typeof failure.code === 'string' ? failure.code : 'EXTRACTION_FAILED';
+        const message = typeof failure.message === 'string' ? failure.message : 'Nebius extraction failed. Imported source records remain available for review.';
+        report({ type: 'progress', stage: 'failed', message });
+        return { type: 'failed', error: { code, message } } satisfies ExtractionTerminalEvent;
+      }
+      const body = await response.json() as {
+        message: string; notices: string[]; findings: number; rejectedFacts: number; embeddingCount: number; model: string;
+      };
+      report({ type: 'progress', stage: 'completed', message: 'Extraction and evidence checks are complete.' });
+      const result: ExtractionCompletionSummary = {
+        message: body.message, notices: body.notices, findings: body.findings,
+        rejectedFacts: body.rejectedFacts, embeddingCount: body.embeddingCount, model: body.model,
+      };
+      return { type: 'completed', result } satisfies ExtractionTerminalEvent;
+    });
+  }
+
+  return performExtraction();
 }

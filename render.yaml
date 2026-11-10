@@ -37,7 +37,7 @@ services:
       - key: NEBIUS_BASE_URL
         value: https://api.tokenfactory.nebius.com/v1
       - key: NEBIUS_MODEL
-        value: Qwen/Qwen3.5-397B-A17B
+        value: Qwen/Qwen3-30B-A3B-Instruct-2507
       - key: NEBIUS_EMBEDDING_MODEL
         value: Qwen/Qwen3-Embedding-8B
       - key: EXTRACTOR_URL
@@ -66,9 +66,11 @@ services:
       - key: NEBIUS_BASE_URL
         value: https://api.tokenfactory.nebius.com/v1
       - key: NEBIUS_MODEL
-        value: Qwen/Qwen3.5-397B-A17B
+        value: Qwen/Qwen3-30B-A3B-Instruct-2507
       - key: NEBIUS_EMBEDDING_MODEL
         value: Qwen/Qwen3-Embedding-8B
+      - key: RELAYOPS_WEB_URL
+        value: https://relayops-round2-web.onrender.com
 
 envVarGroups:
   - name: relayops-extractor-auth

@@ -32,6 +32,36 @@ class ProviderFailureTests(unittest.TestCase):
         self.assertEqual(status, 502)
         self.assertNotIn("secret", detail)
 
+    def test_classifies_provider_timeout_without_exposing_request_content(self):
+        error = type("APITimeoutError", (TimeoutError,), {})("private prompt and token")
+        status, detail, provider_status = classify_nebius_failure(error)
+        self.assertEqual(status, 504)
+        self.assertIn("4 minutes", detail)
+        self.assertNotIn("private", detail)
+        self.assertIsNone(provider_status)
+
+    def test_classifies_transient_provider_outage_as_retryable_guidance(self):
+        error = RuntimeError("private provider response")
+        error.status_code = 503
+        status, detail, provider_status = classify_nebius_failure(error)
+        self.assertEqual(status, 503)
+        self.assertEqual(provider_status, 503)
+        self.assertIn("automatic retries", detail)
+        self.assertIn("remain saved", detail)
+        self.assertNotIn("private", detail)
+
+    def test_classifies_truncated_model_output_without_exposing_partial_json(self):
+        from app.nebius import ModelOutputTruncatedError
+
+        error = ModelOutputTruncatedError("length", 8192, 32768)
+        status, detail, provider_status = classify_nebius_failure(error)
+        metadata = safe_provider_metadata(error)
+        self.assertEqual(status, 502)
+        self.assertIn("structured-output limit", detail)
+        self.assertEqual(metadata["completion_tokens"], 8192)
+        self.assertEqual(metadata["content_length"], 32768)
+        self.assertIsNone(provider_status)
+
     def test_classifies_token_factory_payment_required(self):
         error = RuntimeError("balance details and secret token must stay private")
         error.status_code = 402
