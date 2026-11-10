@@ -1,4 +1,5 @@
 import type { Claim, ClaimCategory, SourceRecord } from "@/lib/domain/types";
+import type { ExtractionProgressEvent } from "@/lib/extraction/progress";
 import { useState } from "react";
 import { StatusBadge } from "./ClaimQueue";
 
@@ -10,7 +11,56 @@ const categoryLabels: Record<ClaimCategory, string> = {
   "next-action": "Next actions",
 };
 
-export function ReconstructView({ claims, sources, onContinue, onExtract, onOpenFinding, extracting, extractionMode }: {
+const extractionStageTitles: Record<ExtractionProgressEvent['stage'], string> = {
+  preparing: 'Preparing the extraction',
+  checking_extractor: 'Checking the extractor',
+  loading_evidence: 'Loading saved evidence',
+  extracting_batch: 'Reading evidence with Nebius',
+  validating_citations: 'Checking source citations',
+  saving_findings: 'Saving verified findings',
+  saving_embeddings: 'Saving evidence search vectors',
+  completed: 'Extraction complete',
+  failed: 'Extraction stopped',
+};
+
+function formatElapsed(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = String(Math.floor(safeSeconds / 60)).padStart(2, '0');
+  const remainder = String(safeSeconds % 60).padStart(2, '0');
+  return `${minutes}:${remainder}`;
+}
+
+function ExtractionProgressPanel({ progress }: { progress: ExtractionProgressEvent }) {
+  const title = extractionStageTitles[progress.stage];
+  const total = progress.batchTotal;
+  const completed = progress.completedBatches;
+  const hasBatchProgress = progress.stage === 'extracting_batch'
+    && Number.isInteger(total) && Number(total) > 0
+    && Number.isInteger(completed) && Number(completed) >= 0;
+
+  return <section className="extraction-progress-panel" aria-label="Nebius extraction progress" aria-busy="true">
+    <div className="extraction-progress-heading">
+      <span className="extraction-progress-spinner" aria-hidden="true"><span /></span>
+      <div className="extraction-progress-copy">
+        <span className="extraction-progress-kicker">EXTRACTION RUNNING</span>
+        <h3>{title}</h3>
+        <p>{progress.message}</p>
+      </div>
+      {progress.batchIndex && total && <span className="extraction-batch-chip">Batch {progress.batchIndex} of {total}</span>}
+    </div>
+    {hasBatchProgress ? <div className="extraction-batch-progress">
+      <div className="extraction-progress-meta"><span>{completed} of {total} batches complete</span>
+        {progress.elapsedSeconds !== undefined && progress.elapsedSeconds > 0 && <time>Elapsed {formatElapsed(progress.elapsedSeconds)}</time>}
+      </div>
+      <progress value={completed} max={total} aria-label={`${completed} of ${total} extraction batches complete`} />
+    </div> : <div className="extraction-progress-indeterminate" aria-hidden="true"><span /></div>}
+    <span className="visually-hidden" role="status" aria-live="polite">
+      {progress.heartbeat ? 'Still processing.' : `${title}. ${progress.message}`}
+    </span>
+  </section>;
+}
+
+export function ReconstructView({ claims, sources, onContinue, onExtract, onOpenFinding, extracting, extractionMode, extractionProgress }: {
   claims: Claim[];
   sources: SourceRecord[];
   onContinue: () => void;
@@ -18,6 +68,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
   onOpenFinding: (claimId: string) => void;
   extracting: boolean;
   extractionMode: 'nebius' | 'deterministic';
+  extractionProgress?: ExtractionProgressEvent | null;
 }) {
   const categories = (Object.keys(categoryLabels) as ClaimCategory[]).map((category) => ({
     category,
@@ -47,6 +98,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
 
   return <section className="stage-page reconstruct-page" aria-labelledby="reconstruct-title">
     <div className="stage-page-heading"><div><h2 id="reconstruct-title">What the project records say</h2><p>{extractionMode === 'nebius' ? 'Nebius extracted these findings from stored passages. Every finding has a quote checked against its source; it does not decide which source is right.' : 'RelayOps groups structured observations and preserves their citations. This deterministic pass does not invent context or decide which source is right.'}</p></div><div className="stage-totals"><strong>{claims.length}</strong><span>findings formed from</span><strong>{sources.length}</strong><span>source records</span></div></div>
+    {extracting && extractionProgress && <ExtractionProgressPanel progress={extractionProgress} />}
     <div className="reconstruct-body">
       <div className="category-ledger" aria-label="Findings by category">
         <div className="ledger-heading"><span>FINDING GROUPS</span><span>{claims.length} TOTAL</span></div>
@@ -64,7 +116,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
       <section className="reconstruction-panel" aria-labelledby="active-risks-title"><div className="reconstruction-panel-heading"><div><span>03 / OPEN CONTEXT</span><h3 id="active-risks-title">Active blockers &amp; risks</h3></div><strong>{blockersAndRisks.length}</strong></div>{renderFindings(blockersAndRisks, "standard")}</section>
       <section className="reconstruction-panel" aria-labelledby="next-actions-title"><div className="reconstruction-panel-heading"><div><span>04 / FOLLOW-THROUGH</span><h3 id="next-actions-title">Next actions</h3></div><strong>{nextActions.length}</strong></div>{renderFindings(nextActions, "standard")}</section>
     </div>
-    <div className="stage-page-footer"><span>{extractionMode === 'nebius' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Checking citations…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'} <span aria-hidden="true">✳</span></button>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
+    <div className="stage-page-footer"><span>{extractionMode === 'nebius' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Extraction in progress…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'} <span aria-hidden="true">✳</span></button>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
   </section>;
 }
 

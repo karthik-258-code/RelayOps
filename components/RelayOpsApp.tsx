@@ -15,6 +15,7 @@ import { ReconstructView, VerifyView } from "./WorkspaceStageViews";
 import type { ClaimCategory, HandoverState, ReviewHistoryEntry, Role, SourceRecord } from "@/lib/domain/types";
 import { canApprove, pendingReviewCount } from "@/lib/domain/workflow";
 import { projectForRole } from "@/lib/security/project-role-view";
+import { consumeExtractionResponse, type ExtractionProgressEvent } from "@/lib/extraction/progress";
 
 const emptyState: HandoverState = { schemaVersion: 1, sources: [], claims: [], reviews: {}, importedNames: [] };
 
@@ -36,6 +37,7 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
   const [handoverReady, setHandoverReady] = useState(false);
   const [extractionMode, setExtractionMode] = useState<'nebius' | 'deterministic'>('deterministic');
   const [busy, setBusy] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState<ExtractionProgressEvent | null>(null);
   const [workspaceLabel, setWorkspaceLabel] = useState('Workspace');
 
   useEffect(() => {
@@ -163,15 +165,23 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
   async function runExtraction() {
     if (accessRole === 'contributor' || !project.importedNames.length) return;
     setBusy(true);
-    setStorageNotice('Checking imported passages and exact source quotes…');
+    setStorageNotice('');
+    setExtractionProgress({ type: 'progress', stage: 'preparing', message: 'Preparing imported evidence for extraction.' });
     try {
-      const response = await fetch(`/api/v1/projects/${projectId}/extract`, { method: 'POST' });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error?.message ?? 'Nebius extraction could not run.');
+      const response = await fetch(`/api/v1/projects/${projectId}/extract`, {
+        method: 'POST',
+        headers: { Accept: 'text/event-stream' },
+        cache: 'no-store',
+      });
+      const result = await consumeExtractionResponse(response, setExtractionProgress);
       await refreshWorkspace();
-      setStorageNotice(`${payload.message}${payload.notices?.length ? ` ${payload.notices.join(' ')}` : ''}`);
-    } catch (caught) { setStorageNotice(caught instanceof Error ? caught.message : 'Nebius extraction failed.'); }
-    finally { setBusy(false); }
+      setStorageNotice(`${result.message}${result.notices.length ? ` ${result.notices.join(' ')}` : ''}`);
+    } catch (caught) {
+      setStorageNotice(caught instanceof Error ? caught.message : 'Nebius extraction failed. Imported source records remain available for manual review.');
+    } finally {
+      setExtractionProgress(null);
+      setBusy(false);
+    }
   }
 
   function resetDemo() { void refreshWorkspace(); setStorageNotice('Reloaded the saved project from PostgreSQL.'); }
@@ -221,7 +231,7 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
             {project.sources.map((source) => <div className="source-table-row" role="row" key={source.id}><div role="cell"><span className="file-icon"><Icon name="file" /></span><span><strong>{source.title}</strong><small className="mono">{source.id}</small></span></div><span role="cell">{source.kind}</span><time role="cell" dateTime={source.occurredAt}>{new Date(source.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</time><span role="cell" className={`tier-label tier-${source.clearance}`}>Tier {source.clearance}</span></div>)}
           </div></div></details>
         </div>
-      </section> : activeStage === 1 ? <ReconstructView claims={project.claims} sources={project.sources} extractionMode={extractionMode} extracting={busy} onExtract={() => void runExtraction()} onOpenFinding={(claimId) => { setSelectedId(claimId); setFilter("all"); setActiveStage(3); }} onContinue={() => setActiveStage(2)} />
+      </section> : activeStage === 1 ? <ReconstructView claims={project.claims} sources={project.sources} extractionMode={extractionMode} extracting={busy} extractionProgress={extractionProgress} onExtract={() => void runExtraction()} onOpenFinding={(claimId) => { setSelectedId(claimId); setFilter("all"); setActiveStage(3); }} onContinue={() => setActiveStage(2)} />
       : activeStage === 2 ? <VerifyView projectId={projectId} conflicts={conflicts} gaps={evidenceGaps} onOpenReview={() => { setFilter("all"); setActiveStage(3); }} onOpenClaim={(claimId) => { setSelectedId(claimId); setFilter("all"); setActiveStage(3); }} />
       : activeStage === 4 && project.approvedAt ? <>
         {roleView.restrictedCount > 0 && role === "contributor" && <div className="redaction-notice"><Icon name="lock" /><span>{roleView.restrictedCount} item{roleView.restrictedCount === 1 ? " is" : "s are"} restricted for this role. Ask your project lead for access.</span></div>}
