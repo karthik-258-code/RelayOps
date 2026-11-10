@@ -76,4 +76,4 @@ The Reconstruction stage owns the progress panel and consumes the stream from th
 - Persistent or refresh-resumable job history.
 - Automatic Nebius retries beyond existing timeout subdivision.
 - Changing model/provider, citation strictness, extraction schema limits, or review/approval rules.
-- Any deployment or Render configuration change.
+- Render service or environment configuration changes. Once the implementation passes local verification, deploy the tested code through the existing GitHub/Render setup requested by the user.
