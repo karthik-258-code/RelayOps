@@ -34,7 +34,7 @@ insert into public.source_passages (id, project_id, source_id, passage_index, co
 values ('31000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 0, 'The database migration is scheduled for Friday.', repeat('c', 64), 1);
 insert into public.source_passages (id, project_id, source_id, passage_index, content, content_hash, clearance)
 values ('31000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', 0, 'Restricted deployment credential evidence.', repeat('d', 64), 3);
-update public.source_passages set embedding = ('[' || repeat('0,', 767) || '0]')::extensions.vector(768)
+update public.source_passages set embedding = ('[' || '1,' || repeat('0,', 766) || '0]')::extensions.vector(768)
 where id in ('31000000-0000-4000-8000-000000000001', '31000000-0000-4000-8000-000000000003');
 select throws_ok(
   $$insert into public.citations (project_id, claim_id, passage_id, quote) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '31000000-0000-4000-8000-000000000001', 'The migration is scheduled for Monday.')$$,
@@ -68,11 +68,11 @@ select results_eq('select count(*) from public.projects', array[1::bigint], 'mem
 select results_eq('select count(*) from public.sources', array[1::bigint], 'clearance 1 member sees only clearance 1 source');
 select results_eq('select count(*) from public.claims', array[2::bigint], 'clearance 1 member sees only clearance 1 claims, including the evidence gap');
 select results_eq(
-  $$select count(*) from public.match_project_passages('20000000-0000-4000-8000-000000000001', ('[' || repeat('0,', 767) || '0]')::extensions.vector(768), 3::smallint, 12)$$,
+  $$select count(*) from public.match_project_passages('20000000-0000-4000-8000-000000000001', ('[' || '1,' || repeat('0,', 766) || '0]')::extensions.vector(768), 3::smallint, 12)$$,
   array[1::bigint], 'vector RPC honors RLS even when caller requests restricted clearance'
 );
 select results_eq(
-  $$select count(*) from public.match_project_passages('20000000-0000-4000-8000-000000000002', ('[' || repeat('0,', 767) || '0]')::extensions.vector(768), 3::smallint, 12)$$,
+  $$select count(*) from public.match_project_passages('20000000-0000-4000-8000-000000000002', ('[' || '1,' || repeat('0,', 766) || '0]')::extensions.vector(768), 3::smallint, 12)$$,
   array[0::bigint], 'vector RPC cannot cross project membership boundaries'
 );
 select ok(not has_table_privilege('authenticated', 'public.projects', 'INSERT'), 'client cannot create projects or self-assign lead');

@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { sortProjects, type ProjectSummary } from '@/lib/projects/directory';
+import { SignOutButton } from '@/components/SignOutButton';
 
 export function ProjectDirectory() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export function ProjectDirectory() {
     <main className="projects-page">
       <header className="projects-topbar">
         <a className="brand-lockup" href="/projects" aria-label="RelayOps projects home"><span className="brand-mark">R</span><span>RelayOps <span className="brand-light">/ workspaces</span></span></a>
-        <span className="projects-account"><span className="online-dot" /> Private to your team</span>
+        <div className="projects-account-actions"><span className="projects-account"><span className="online-dot" /> Private to your team</span><SignOutButton className="projects-signout" /></div>
       </header>
       <div className="projects-content">
         <section className="projects-intro" aria-labelledby="projects-title">

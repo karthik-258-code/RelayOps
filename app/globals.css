@@ -979,3 +979,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .project-card, .project-open, .new-project-controls button { transition: none; }
   .project-card:hover, .new-project-controls button:hover:not(:disabled) { transform: none; }
 }
+.projects-account-actions { display: inline-flex; align-items: center; gap: 18px; }
+.projects-signout { padding: 7px 11px; color: #52625a; background: white; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 11px; transition: border-color .15s ease, color .15s ease, background .15s ease; }
+.projects-signout:hover { color: var(--green-dark); background: #f8faf8; border-color: #b9cbbd; }
+@media (max-width: 430px) { .projects-account-actions { gap: 10px; } .projects-signout { padding: 6px 8px; font-size: 10px; } }
