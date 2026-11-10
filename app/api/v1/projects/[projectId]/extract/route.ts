@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
+import { waitForExtractorHealth } from '@/lib/server/extractor-health';
 import { withProjectMutation } from '@/lib/server/project-mutation';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { matchesCodePointCitation } from '@/lib/ingestion/persisted-citations';
@@ -67,8 +68,11 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
     .eq('project_id', projectId).in('source_id', sources.map((source) => source.id)).lte('clearance', access.clearance).order('passage_index');
   if (passageError || !passages?.length) return jsonError(409, 'NO_STORED_PASSAGES', 'This project has no stored source passages to extract.');
 
-  const healthResponse = await fetch(`${extractorUrl.replace(/\/$/, '')}/health`, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }).catch(() => null);
-  if (!healthResponse?.ok) return jsonError(503, 'EXTRACTOR_OFFLINE', 'Check that EXTRACTOR_URL points to a healthy extractor service, then retry.');
+  const healthUrl = `${extractorUrl.replace(/\/$/, '')}/health`;
+  const healthResponse = await waitForExtractorHealth(
+    () => fetch(healthUrl, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }),
+  );
+  if (!healthResponse) return jsonError(503, 'EXTRACTOR_OFFLINE', 'The extractor did not become healthy after several retries. Check its Render status and logs, then retry.');
   const health = await healthResponse.json();
   if (!health.model_configured) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Configure NEBIUS_API_KEY on the extractor service, then restart or redeploy it.');
 
