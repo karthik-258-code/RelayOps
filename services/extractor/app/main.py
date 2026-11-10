@@ -16,6 +16,14 @@ app = FastAPI(title="RelayOps Evidence Extractor", version="1.0.0", docs_url=Non
 logger = logging.getLogger("relayops.extractor")
 
 
+def build_rejected_fact_notice(rejected_count: int) -> str | None:
+    if rejected_count <= 0:
+        return None
+    noun = "model fact" if rejected_count == 1 else "model facts"
+    verb = "was" if rejected_count == 1 else "were"
+    return f"{rejected_count} {noun} {verb} excluded because {('it' if rejected_count == 1 else 'they')} failed schema or evidence validation."
+
+
 class RedactionObservation(BaseModel):
     model_config = ConfigDict(extra="ignore")
     topic: str = Field(max_length=120)
@@ -109,8 +117,9 @@ async def extract(request: ExtractRequest):
     embeddings = result.get("embeddings", {})
     rejected = int(result.get("rejected_fact_count", 0))
     notices = list(result.get("notices", []))
-    if rejected:
-        notices.append(f"{rejected} model fact{'' if rejected == 1 else 's'} were excluded because their citations did not match stored evidence.")
+    rejection_notice = build_rejected_fact_notice(rejected)
+    if rejection_notice:
+        notices.append(rejection_notice)
     if not claims:
         notices.append("No cited handover facts were extracted. Source records remain available for human review.")
     return ExtractResponse(
