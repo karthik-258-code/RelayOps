@@ -60,8 +60,8 @@
 - [ ] **Step 2: Run only the new tests to confirm they fail.** Run: `.venv/Scripts/python.exe -m unittest discover -s tests -p 'test_model_output.py' -v` from `services/extractor`; Expected: an import/function failure for the not-yet-implemented parser.
 - [ ] **Step 3: Implement `parse_model_facts(response_text: str) -> tuple[list[dict], int]`.** Parse the top-level object and enforce the existing maximum of 300 facts; validate each fact independently with `ObservedFact.model_validate`; count and skip fact-level `ValidationError`s; raise on malformed top-level JSON or invalid envelope shape. Update `_make_prompt` to state citation quotes must be concise and at most 1,000 characters.
 - [ ] **Step 4: Integrate the parser in `_model_node`.** Pass accepted facts to the unchanged exact citation validator and set `rejected_fact_count` to schema-invalid plus citation-invalid facts.
-- [ ] **Step 5: Update the extractor response notice.** Change the message in `main.py` to say rejected facts failed schema or evidence validation; test singular and plural counts through the response-notice helper.
-- [ ] **Step 6: Run targeted extractor tests.** Run: `python -m unittest discover -s tests -p 'test_model_output.py' -v` and `python -m unittest discover -s tests -p 'test_validation.py' -v` from `services/extractor`; Expected: all tests pass, including existing nonmatching-quote rejection.
+- [ ] **Step 5: Update the extractor response notice.** Add `build_rejected_fact_notice(rejected_count: int) -> str | None` to `main.py`, use it for response notices, and state rejected facts failed schema or evidence validation; test singular/plural behavior and zero count.
+- [ ] **Step 6: Run targeted extractor tests.** Run: `.venv/Scripts/python.exe -m unittest discover -s tests -p 'test_model_output.py' -v` and `.venv/Scripts/python.exe -m unittest discover -s tests -p 'test_validation.py' -v` from `services/extractor`; Expected: all tests pass, including existing nonmatching-quote rejection.
 - [ ] **Step 7: Commit only the Task 1 files.** Use commit message `fix: isolate malformed Nebius findings`.
 
 ## Task 2: Add an opt-in, safe progress stream
@@ -121,8 +121,8 @@
 
 ## Verification Commands
 
-- Python focused: `python -m unittest tests.test_model_output tests.test_validation -v` (cwd `services/extractor`).
-- Python suite: `python -m unittest discover -s tests -v` (cwd `services/extractor`).
+- Python focused: `.venv/Scripts/python.exe -m unittest discover -s tests -p 'test_model_output.py' -v` and `.venv/Scripts/python.exe -m unittest discover -s tests -p 'test_validation.py' -v` (cwd `services/extractor`).
+- Python suite: `.venv/Scripts/python.exe -m unittest discover -s tests -v` (cwd `services/extractor`).
 - TypeScript focused: `npx tsx --test tests/extraction-progress.test.ts tests/extraction-progress-view.test.ts tests/extraction-request.test.ts tests/extraction-merge.test.ts`.
 - TypeScript suite: `npm test`.
 - Type check: `npm run typecheck`.
