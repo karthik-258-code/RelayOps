@@ -4,8 +4,9 @@ import { pendingReviewCount } from "@/lib/domain/workflow";
 
 const stages = ["Connect", "Reconstruct", "Verify", "Review", "Handover"] as const;
 
-export function WorkflowHeader({ project, activeStage, onStageChange }: {
+export function WorkflowHeader({ project, projectName, activeStage, onStageChange }: {
   project: HandoverState;
+  projectName: string;
   activeStage: number;
   onStageChange: (stage: number) => void;
 }) {
@@ -14,7 +15,7 @@ export function WorkflowHeader({ project, activeStage, onStageChange }: {
     <div className="workflow-header">
       <div className="workflow-title-row">
         <div>
-          <div className="breadcrumbs"><span>Workspace</span><Icon name="chevron" /><span>Project Chronos</span></div>
+          <div className="breadcrumbs"><a href="/projects">Projects</a><Icon name="chevron" /><span>{projectName}</span></div>
           <h1>Knowledge handover</h1>
           <p className="subtitle">A source-backed view of current work. Review each finding before sharing.</p>
         </div>
