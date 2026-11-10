@@ -24,7 +24,7 @@ export function SignInPanel() {
       const supabase = createSupabaseBrowserClient();
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
-      router.replace('/workspace');
+      router.replace('/projects');
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not sign in. Check the local Supabase service.');
@@ -47,3 +47,4 @@ export function SignInPanel() {
     <p className="auth-local-note"><span className="auth-lock" aria-hidden="true">⌑</span> Demo credentials work only with the local database.</p>
   </section>;
 }
+

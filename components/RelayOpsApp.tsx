@@ -20,9 +20,9 @@ const emptyState: HandoverState = { schemaVersion: 1, sources: [], claims: [], r
 
 const statusLabels = ["VERIFIED", "CONFLICT", "MISSING EVIDENCE"] as const;
 
-export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: string; accessRole: 'lead' | 'reviewer' | 'contributor'; clearance: 1 | 2 | 3 }) {
+export function RelayOpsApp({ projectId, projectName: initialProjectName, accessRole, clearance }: { projectId: string; projectName: string; accessRole: 'lead' | 'reviewer' | 'contributor'; clearance: 1 | 2 | 3 }) {
   const [project, setProject] = useState<HandoverState>(emptyState);
-  const [projectName, setProjectName] = useState('Project Chronos');
+  const [projectName, setProjectName] = useState(initialProjectName);
   const [selectedId, setSelectedId] = useState("");
   const [filter, setFilter] = useState<ClaimCategory | "all">("all");
   const [role, setRole] = useState<Role>(accessRole === 'lead' ? 'project-lead' : 'contributor');
