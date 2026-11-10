@@ -48,6 +48,7 @@
 
 **Files:**
 - Modify: `services/extractor/app/pipeline.py`
+- Modify: `services/extractor/app/main.py`
 - Create: `services/extractor/tests/test_model_output.py`
 - Test: `services/extractor/tests/test_validation.py`
 
@@ -55,12 +56,13 @@
 - Produces: `parse_model_facts(response_text: str) -> tuple[list[dict], int]` in `app.pipeline`.
 - Consumes: existing `ObservedFact`, `ExtractionEnvelope`, and `validate_fact_citations` contracts.
 
-- [ ] **Step 1: Add failing parser tests.** Cover an envelope with one valid fact and one citation quote of 8,153 characters (valid fact retained, rejected count 1), a malformed individual fact (valid sibling retained), and malformed JSON or a non-array `facts` field (raises a safe validation error).
+- [ ] **Step 1: Add failing tests.** Cover an envelope with one valid fact and one citation quote of 8,153 characters (valid fact retained, rejected count 1), a malformed individual fact (valid sibling retained), malformed JSON/non-array or more than 300 facts (raises a safe validation error), and the user-facing rejection notice stating schema or evidence validation.
 - [ ] **Step 2: Run only the new tests to confirm they fail.** Run: `python -m unittest tests.test_model_output -v` from `services/extractor`; Expected: import/function or assertion failures for the not-yet-implemented behavior.
 - [ ] **Step 3: Implement `parse_model_facts(response_text: str) -> tuple[list[dict], int]`.** Parse the top-level object and enforce the existing maximum of 300 facts; validate each fact independently with `ObservedFact.model_validate`; count and skip fact-level `ValidationError`s; raise on malformed top-level JSON or invalid envelope shape. Update `_make_prompt` to state citation quotes must be concise and at most 1,000 characters.
 - [ ] **Step 4: Integrate the parser in `_model_node`.** Pass accepted facts to the unchanged exact citation validator and set `rejected_fact_count` to schema-invalid plus citation-invalid facts.
-- [ ] **Step 5: Run targeted extractor tests.** Run: `python -m unittest tests.test_model_output tests.test_validation -v` from `services/extractor`; Expected: all tests pass, including existing nonmatching-quote rejection.
-- [ ] **Step 6: Commit only the Task 1 files.** Use commit message `fix: isolate malformed Nebius findings`.
+- [ ] **Step 5: Update the extractor response notice.** Change the message in `main.py` to say rejected facts failed schema or evidence validation; test singular and plural counts through the response-notice helper.
+- [ ] **Step 6: Run targeted extractor tests.** Run: `python -m unittest discover -s tests -p 'test_model_output.py' -v` and `python -m unittest discover -s tests -p 'test_validation.py' -v` from `services/extractor`; Expected: all tests pass, including existing nonmatching-quote rejection.
+- [ ] **Step 7: Commit only the Task 1 files.** Use commit message `fix: isolate malformed Nebius findings`.
 
 ## Task 2: Add an opt-in, safe progress stream
 
