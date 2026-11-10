@@ -232,6 +232,31 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .decision-summary blockquote { margin: 0 0 9px; padding: 8px 10px; border: 1px solid #dce8e0; border-radius: 5px; background: #f3f7f4; line-height: 1.5; }
 .review-empty { padding: 15px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
 .review-empty p { margin: 0; }
+.review-panel-stack { display: grid; gap: 10px; min-width: 0; }
+.exit-interview, .decision-history { padding: 16px 17px; border: 1px solid #d9e3dc; border-radius: 6px; background: #f6f8f5; }
+.exit-interview-heading, .decision-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.exit-interview-heading { justify-content: flex-start; margin-bottom: 12px; }
+.exit-interview-mark { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #ceddd2; border-radius: 6px; background: white; color: var(--green-dark); }
+.exit-interview-mark svg { width: 17px; height: 17px; }
+.exit-interview-heading .panel-kicker, .decision-history-heading .panel-kicker { margin: 0 0 3px; color: var(--muted-2); font-size: 9px; letter-spacing: .08em; }
+.exit-interview-heading h4, .decision-history-heading h4 { margin: 0; color: var(--ink); font-size: 14px; }
+.exit-interview-prompt { margin: 0 0 13px; color: #35443d; font-size: 13px; line-height: 1.55; }
+.exit-interview textarea { display: block; width: 100%; min-height: 92px; resize: vertical; padding: 11px 12px; border: 1px solid #cfd8d2; border-radius: 5px; background: white; color: var(--ink); font: inherit; font-size: 13px; line-height: 1.55; }
+.exit-interview textarea:focus-visible { outline: 3px solid rgb(68 119 89 / 28%); outline-offset: 2px; border-color: var(--green); }
+.exit-interview-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; }
+.exit-interview-footer > span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.exit-interview-error { margin: 10px 0 0; color: var(--red); font-size: 12px; }
+.decision-history { background: white; }
+.decision-history-heading > span { color: var(--muted); font-size: 11px; }
+.decision-history ol { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; }
+.decision-history li { padding: 12px 0; border-top: 1px solid #e7ece8; }
+.decision-history li:first-child { padding-top: 0; border-top: 0; }
+.decision-history-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.decision-history-line strong { color: #34433c; font-size: 12px; }
+.decision-history-line time, .decision-history li > p { color: var(--muted); font-size: 10px; }
+.decision-history li > p { margin: 5px 0 0; }
+.decision-history blockquote { margin: 8px 0 0; padding: 8px 10px; border-left: 2px solid #9bb8a5; background: #f6f8f6; color: #3b4842; font-size: 12px; line-height: 1.5; }
+.decision-history-note { color: #46534c !important; }
 
 .approval-bar { position: sticky; bottom: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 15px; padding: 12px 15px; border: 1px solid #d9e2dc; border-radius: 7px; background: rgb(255 255 255 / 96%); box-shadow: var(--shadow); backdrop-filter: blur(8px); }
 .approval-bar > div { display: flex; align-items: center; gap: 10px; }
@@ -659,6 +684,14 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .review-actions { gap: 9px; margin-top: 15px; }
 .review-stage .button { min-height: 40px; padding-inline: 13px; font-size: 12px; }
 .decision-saved, .decision-summary { font-size: 13px; }
+.exit-interview, .decision-history { padding: 19px 20px; }
+.exit-interview-heading h4, .decision-history-heading h4 { font-size: 16px; }
+.exit-interview-prompt { font-size: 14px; }
+.exit-interview textarea { min-height: 110px; font-size: 14px; }
+.exit-interview-footer > span { font-size: 12px; }
+.decision-history-line strong { font-size: 13px; }
+.decision-history-line time, .decision-history li > p { font-size: 11px; }
+.decision-history blockquote { font-size: 13px; }
 .approval-bar { gap: 18px; margin-top: 18px; padding: 15px 18px; }
 .approval-bar strong { font-size: 13px; }
 .approval-bar > div > div > span { font-size: 12px; }
@@ -821,6 +854,10 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .action-row > .status-badge { grid-column: 2; justify-self: start; }
   .handover-view .receipt-panel { align-items: flex-start; flex-direction: column; margin: 17px 19px 22px; }
   .handover-view .receipt-panel .button { width: 100%; }
+  .exit-interview-footer { align-items: stretch; flex-direction: column; }
+  .exit-interview-footer .button { width: 100%; }
+  .decision-history-line { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .decision-history, .exit-interview { padding: 15px; }
 }
 
 /* The homepage mock is real product context, so its labels must remain legible. */

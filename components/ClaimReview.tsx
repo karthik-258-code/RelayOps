@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { Claim, ClaimReview as ClaimReviewData, ReviewDisposition } from "@/lib/domain/types";
+import type { Claim, ClaimReview as ClaimReviewData, ReviewDisposition, ReviewHistoryEntry } from "@/lib/domain/types";
 import { finalStatement } from "@/lib/domain/workflow";
 import { Icon } from "./icons";
+import { ExitInterview } from "./ExitInterview";
 
-export function ClaimReview({ claim, review, onDecision, canReview = true, busy = false }: {
+const decisionLabels: Record<ReviewDisposition, string> = {
+  pending: "Reopened",
+  confirmed: "Confirmed finding",
+  resolved: "Saved revised wording",
+  "accepted-uncertainty": "Kept uncertainty visible",
+  rejected: "Excluded from handover",
+};
+
+export function ClaimReview({ claim, review, history = [], onDecision, onInterview, canReview = true, busy = false }: {
   claim: Claim | null;
   review?: ClaimReviewData;
+  history?: ReviewHistoryEntry[];
   onDecision: (id: string, disposition: ReviewDisposition, editedStatement?: string) => void;
+  onInterview?: (id: string, response: string) => Promise<void>;
   canReview?: boolean;
   busy?: boolean;
 }) {
@@ -28,7 +39,7 @@ export function ClaimReview({ claim, review, onDecision, canReview = true, busy 
     onDecision(claim!.id, "resolved", statement.trim());
   }
 
-  return <form className="review-box" onSubmit={saveResolution}>
+  return <div className="review-panel-stack"><form className="review-box" onSubmit={saveResolution}>
     <div className="review-box-heading"><div><p className="panel-kicker">Human review</p><h3>{pending ? "Make a decision" : "Reviewer decision"}</h3></div>
       {!pending && <span className="decision-saved"><Icon name="check" />Saved</span>}
     </div>
@@ -52,5 +63,15 @@ export function ClaimReview({ claim, review, onDecision, canReview = true, busy 
       {review?.editedStatement && <blockquote>{review.editedStatement}</blockquote>}
       <button type="button" className="button button-quiet" disabled={busy} onClick={() => onDecision(claim.id, "pending", review?.editedStatement)}>Reopen review</button>
     </div>}
-  </form>;
+  </form>
+  {pending && claim.status === "MISSING EVIDENCE" && canReview && onInterview && <ExitInterview claim={claim} busy={busy} onSubmit={onInterview} />}
+  {history.length > 0 && <section className="decision-history" aria-labelledby="decision-history-title">
+    <div className="decision-history-heading"><div><p className="panel-kicker">PROJECT RECORD</p><h4 id="decision-history-title">Decision history</h4></div><span>{history.length} {history.length === 1 ? "entry" : "entries"}</span></div>
+    <ol>{history.map((entry, index) => <li key={`${entry.claimVersion}-${entry.createdAt}-${index}`}>
+      <div className="decision-history-line"><strong>{decisionLabels[entry.disposition]}</strong><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</time></div>
+      <p>{entry.actorLabel ?? "Project reviewer"} · finding version {entry.claimVersion}</p>
+      {entry.editedStatement && <blockquote>{entry.editedStatement}</blockquote>}
+      {entry.note && <p className="decision-history-note">{entry.note}</p>}
+    </li>)}</ol>
+  </section>}</div>;
 }

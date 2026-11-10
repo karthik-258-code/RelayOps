@@ -60,6 +60,12 @@ export interface ClaimReview {
   note?: string;
 }
 
+export interface ReviewHistoryEntry extends ClaimReview {
+  claimVersion: number;
+  createdAt: string;
+  actorLabel?: string;
+}
+
 export interface HandoverState {
   schemaVersion: 1;
   sources: SourceRecord[];

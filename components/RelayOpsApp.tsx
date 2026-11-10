@@ -12,7 +12,7 @@ import { RoleHandover } from "./RoleHandover";
 import { WorkflowHeader } from "./WorkflowHeader";
 import { SignOutButton } from "./SignOutButton";
 import { ReconstructView, VerifyView } from "./WorkspaceStageViews";
-import type { ClaimCategory, HandoverState, Role, SourceRecord } from "@/lib/domain/types";
+import type { ClaimCategory, HandoverState, ReviewHistoryEntry, Role, SourceRecord } from "@/lib/domain/types";
 import { canApprove, pendingReviewCount } from "@/lib/domain/workflow";
 import { projectForRole } from "@/lib/security/project-role-view";
 
@@ -31,12 +31,15 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
   const [storageWarning, setStorageWarning] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
   const [claimVersions, setClaimVersions] = useState<Record<string, number>>({});
+  const [reviewHistory, setReviewHistory] = useState<Record<string, ReviewHistoryEntry[]>>({});
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [handoverReady, setHandoverReady] = useState(false);
   const [extractionMode, setExtractionMode] = useState<'nebius' | 'deterministic'>('deterministic');
   const [busy, setBusy] = useState(false);
+  const [workspaceLabel, setWorkspaceLabel] = useState('Workspace');
 
   useEffect(() => {
+    setWorkspaceLabel(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'Local workspace' : 'Judge demo');
     void refreshWorkspace(true);
     // The project id is fixed for this signed-in workspace session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,6 +53,7 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
       setProject(payload.state as HandoverState);
       setProjectName(payload.project.name as string);
       setClaimVersions(payload.claimVersions as Record<string, number>);
+      setReviewHistory((payload.reviewHistory ?? {}) as Record<string, ReviewHistoryEntry[]>);
       setSnapshotId(payload.snapshotId as string | null);
       setHandoverReady(Boolean(payload.handoverReady));
       setExtractionMode(payload.extractionMode === 'nebius' ? 'nebius' : 'deterministic');
@@ -114,6 +118,26 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
     finally { setBusy(false); }
   }
 
+  async function recordInterview(id: string, responseText: string) {
+    if (!['lead', 'reviewer'].includes(accessRole)) throw new Error('A project reviewer must record the contributor’s answer.');
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/v1/projects/${projectId}/interviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claimId: id, expectedVersion: claimVersions[id], response: responseText }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? 'Could not save the interview answer.');
+      await refreshWorkspace();
+      setStorageNotice(payload.message ?? 'Answer saved as cited context. Reviewer decision is still required.');
+    } catch (caught) {
+      const error = caught instanceof Error ? caught : new Error('Could not save the interview answer.');
+      setStorageNotice(error.message);
+      throw error;
+    } finally { setBusy(false); }
+  }
+
   async function acknowledge() {
     if (!snapshotId) return;
     setBusy(true);
@@ -163,7 +187,7 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
   return <div className="app-shell">
     <header className="topbar">
       <Link className="brand-lockup" href="/" aria-label="RelayOps home"><span className="brand-mark">R</span><span>Relay<span className="brand-light">Ops</span></span></Link>
-      <div className="topbar-right"><Link className="workspace-home-link" href="/">Home</Link><span className="workspace-label"><span className="online-dot" />Local workspace · Tier {clearance}</span><SignOutButton />
+      <div className="topbar-right"><Link className="workspace-home-link" href="/">Home</Link><span className="workspace-label"><span className="online-dot" />{workspaceLabel} · Tier {clearance}</span><SignOutButton />
         {activeStage === 4 && project.approvedAt && <div className="role-control">
           <span className="role-control-label">View as</span>
           <fieldset className="role-switch">
@@ -199,7 +223,7 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
         <div className="review-layout">
           <ClaimQueue claims={project.claims} reviews={project.reviews} selectedId={selectedClaim?.id ?? ""} filter={filter} onFilter={setFilter} onSelect={setSelectedId} />
           <div className="detail-column"><EvidenceInspector claim={selectedClaim} />
-            <ClaimReview key={selectedClaim?.id ?? "empty"} claim={selectedClaim} review={selectedClaim ? project.reviews[selectedClaim.id] : undefined} canReview={accessRole === 'lead' || accessRole === 'reviewer'} busy={busy} onDecision={(id, disposition, editedStatement) => { void recordDecision(id, disposition, editedStatement); }} />
+            <ClaimReview key={selectedClaim?.id ?? "empty"} claim={selectedClaim} review={selectedClaim ? project.reviews[selectedClaim.id] : undefined} history={selectedClaim ? reviewHistory[selectedClaim.id] ?? [] : []} canReview={accessRole === 'lead' || accessRole === 'reviewer'} busy={busy} onInterview={recordInterview} onDecision={(id, disposition, editedStatement) => { void recordDecision(id, disposition, editedStatement); }} />
           </div>
         </div>
         <div className="approval-bar"><div><span className={`approval-indicator ${pending ? "waiting" : "ready"}`} />

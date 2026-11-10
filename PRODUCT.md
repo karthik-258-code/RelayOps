@@ -21,19 +21,21 @@ RelayOps keeps source evidence attached to every finding, preserves contradictio
 
 ## Operating Context
 
-- The Round 2 demo uses the synthetic Project Chronos workspace.
-- Leads can add local Markdown and RelayOps JSON records.
-- Review and handover state is held in browser local storage on the current device.
+- The Round 2 demo uses the synthetic Project Chronos workspace, stored in PostgreSQL.
+- Leads and reviewers can import Markdown, RelayOps/Linear/Slack/Discord JSON exports, and bounded public or authorized GitHub evidence.
+- Review decisions, exit-interview answers, approval snapshots, and receipt acknowledgements persist in PostgreSQL.
+- Extraction uses structured model output when configured and deterministic reconstruction as an always-available fallback.
 - The workflow progresses through Connect, Reconstruct, Verify, Review, and Handover.
 
 ## Capabilities and Constraints
 
-- Reconstruction is deterministic and source-linked; it does not use an LLM or live GitHub integration.
+- Reconstruction combines deterministic checks with optional structured model extraction and source-linked citations. GitHub is the live upstream connector; communication and task sources use authorized exports.
 - Findings are labeled VERIFIED, CONFLICT, or MISSING EVIDENCE.
 - Human review and approval are required before opening the incoming handover.
-- Contributor views filter restricted claims and evidence before rendering.
-- Role switching is a workflow demonstration, not an authentication or server-side security boundary.
-- The main workflow runs without accounts, API keys, or a server database.
+- Reviewer actions are recorded with claim versions and displayed in finding history.
+- Missing-evidence findings can collect a text exit-interview answer as cited source context; the answer never resolves or approves the finding by itself.
+- Contributor views filter restricted claims and evidence server-side using Supabase Auth, PostgreSQL, and RLS.
+- The seeded local workflow runs without external model or GitHub credentials. Hosted demos require hosted Supabase and service configuration.
 - Imported material must be synthetic, public, or otherwise authorised; the demo must not invite confidential data.
 - The public homepage should clearly lead into the working workspace rather than replace it with a marketing-only experience.
 

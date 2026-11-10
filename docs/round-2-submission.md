@@ -22,8 +22,9 @@ The ready-to-use Project Chronos workspace models the Round 1 fintech migration 
 - Reconstruct supported facts deterministically; the Nebius Token Factory/LangGraph extractor is integrated to produce structured facts, embeddings, and temporal graph edges. The seeded Chronos sources are now included in the extraction input.
 - Validate every persisted citation against the exact stored passage and quoted text. Model output cannot approve or resolve a disagreement.
 - Show disagreements and evidence gaps explicitly in Verify.
+- Offer category-specific text exit-interview prompts for missing-evidence findings. Save the contributor’s answer as a clearance-tagged source with an exact quote citation; capture never resolves or approves the claim.
 - Search embedded source passages by natural-language query with pgvector cosine similarity; the search RPC runs as the signed-in user so project membership and clearance RLS filter matches before content is returned.
-- Human review actions use optimistic claim versions; any changed claim needs a new decision. A heartbeat-backed project lock prevents source import or extraction from racing with review and approval.
+- Keep an append-only decision history for each finding, including disposition, note, saved wording, timestamp, and finding version. Human review actions use optimistic claim versions; any changed claim needs a new decision. A heartbeat-backed project lock prevents source import or extraction from racing with review and approval.
 - A lead approval gate blocks incomplete handovers. Versioned snapshots are immutable and repeated approval of one revision returns its existing snapshot.
 - Contributors receive only an approved snapshot and only data at their clearance level; source text, citations, and related evidence are filtered server-side and protected by RLS.
 - Incoming contributor gets the approved first-seven-days sequence, source-linked project findings, and can acknowledge the specific approved snapshot.
@@ -55,23 +56,21 @@ Notion Markdown / RelayOps, Linear, Slack, Discord JSON / GitHub records
 
 The initial Round 2 build temporarily replaced the planned database, server-side access, GitHub ingestion, vector/graph storage, and LLM extractor with browser-local deterministic logic. That did not meet the Round 1 plan. This build restores the planned architecture: Supabase/PostgreSQL and RLS, server-backed persistence, GitHub imports, a privacy-filtering FastAPI/LangGraph Nebius Token Factory extractor, vector/temporal graph data, and human approval. The LLM provider changed from Gemini to Nebius because the team has Nebius Token Factory credit available and chose to use it for the model and embedding workflow. A deterministic path remains as a no-key baseline for judges; it is not presented as a substitute for the planned AI path. General-purpose workspace creation and team invitations are not implemented in Round 2.
 
-<!-- page-break -->
-
 ## Known limitations / what does not work yet
 
 - A live synthetic end-to-end extractor check passed with Nebius: three facts were returned, all citations passed exact-quote validation, and the source received a 768-dimensional embedding. The full 33-source Chronos corpus has not yet been run through Nebius; model latency and spend scale with imported evidence and generated output. The current Token Factory project returned 31 models at catalog check time.
 - Private GitHub repository import requires a read-only fine-grained token. The import is bounded to 50 recent records, selected diffs, and root/docs Markdown; it does not mirror the full repository or watch for later changes.
-- The public link is not deployed: static GitHub Pages cannot run these APIs. Render and hosted Supabase still need production configuration.
+- The static GitHub Pages URL cannot run these APIs. A server-backed Render deploy needs a hosted Supabase project, the Render services and secret configuration, then a live end-to-end judge walkthrough.
 - Only the seeded Project Chronos workspace and local demo accounts are supplied. Arbitrary workspaces and invitations are not included.
 - Presidio requires the extractor service; when it is unavailable, the API reports that it is using the deterministic Node redaction fallback.
 - An interrupted source/extraction request keeps approval blocked until its 15-minute mutation lease expires; retry the source import or extraction to recover and reconcile the project before reviewing.
-- Deployment is not verified. Nebius inference is validated locally; hosted deployment still needs a production Token Factory key, hosted Supabase credentials, and environment configuration.
+- Decision history is an append-only application record, not a cryptographically tamper-evident audit. The comparison viewer and PDF export remain Round 3 work.
 
 ## Three planned Round 3 improvements
 
-1. **Voice exit micro-interview:** collect a departing teammate’s answer to a specific evidence gap, timestamp and attach the response as a source, then require human review before it enters an approved handover.
+1. **Voice exit micro-interview:** let a departing teammate record a short spoken answer to a specific evidence gap, transcribe it with timestamps, and attach the transcript as cited source evidence for human review.
 2. **Dependency graph and Day-1 runbook:** visualize blocker/task dependencies and turn approved dependencies and next actions into an interactive first-week checklist for the incoming teammate.
-3. **Tamper-evident audit, version diff, and receipt export:** record source-to-decision changes in a verifiable event history, tie recipient sign-off to the approved snapshot, and export the handover as a PDF.
+3. **Tamper-evident audit, version diff, and receipt export:** add cryptographic integrity checks to the existing decision history, show source-to-human wording changes side by side, and export the approved handover and receipt as a PDF.
 
 ## Local judge walkthrough
 
@@ -79,7 +78,7 @@ The initial Round 2 build temporarily replaced the planned database, server-side
 2. Run `./scripts/setup-local-env.ps1` once to write local-only settings to `.env.local`.
 3. Start the extractor in one terminal with `./services/extractor/scripts/start.ps1` and the web app in another with `npm run dev`.
 4. Open <http://localhost:3000>, choose **Open workspace**, and sign in as `lead@relayops.local` with password `RelayOpsDemo!2026`.
-5. Connect/import records, inspect Reconstruct and Verify, resolve or accept evidence statuses in Review, and approve the project.
+5. Connect/import records, inspect Reconstruct and Verify, open a missing-evidence finding in Review, capture a text exit-interview answer, and confirm its citation. Make a separate reviewer decision, then check Decision history before lead approval.
 6. Sign out; sign in as `contributor@relayops.local` with the same local demo password to see the clearance-filtered approved snapshot and acknowledge receipt.
 7. Optional: configure `NEBIUS_API_KEY` in ignored `.env.local`, restart both services, and run Nebius extraction from Reconstruct. Optional: import a public GitHub repository without a token.
 

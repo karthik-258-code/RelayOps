@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { groupReviewHistory } from '@/lib/domain/review-history';
 import type { Claim, ClaimCategory, ClaimReview, EvidenceStatus, HandoverState, SourceKind, SourceRecord } from '@/lib/domain/types';
 
 const projectIdSchema = z.uuid();
@@ -46,7 +47,7 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
   const [passageResult, citationResult, reviewResult] = await Promise.all([
     sourceIds.length ? admin.from('source_passages').select('id,source_id,content,clearance').eq('project_id', projectId).in('source_id', sourceIds).lte('clearance', access.clearance) : Promise.resolve({ data: [], error: null }),
     claimIds.length ? admin.from('citations').select('id,claim_id,passage_id,quote,relation').eq('project_id', projectId).in('claim_id', claimIds) : Promise.resolve({ data: [], error: null }),
-    claimIds.length ? admin.from('review_decisions').select('id,claim_id,decision,edited_statement,note,claim_version,created_at').eq('project_id', projectId).in('claim_id', claimIds).order('created_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
+    claimIds.length ? admin.from('review_decisions').select('id,claim_id,user_id,decision,edited_statement,note,claim_version,created_at').eq('project_id', projectId).in('claim_id', claimIds).order('created_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
   ]);
   if (passageResult.error || citationResult.error || reviewResult.error) return jsonError(503, 'DATABASE_UNAVAILABLE', 'RelayOps could not load source evidence. Retry in a moment.');
 
@@ -98,7 +99,20 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
     };
   });
   const reviews: Record<string, ClaimReview> = Object.fromEntries(domainClaims.map((claim) => [claim.id, { disposition: 'pending' }]));
-  for (const row of reviewResult.data ?? []) {
+  const rawReviewRows = reviewResult.data ?? [];
+  const reviewerIds = access.role === 'contributor' ? [] : [...new Set(rawReviewRows.map((row) => row.user_id))];
+  const [profileResult, memberResult] = reviewerIds.length ? await Promise.all([
+    admin.from('profiles').select('user_id,display_name').in('user_id', reviewerIds),
+    admin.from('project_members').select('user_id,role').eq('project_id', projectId).in('user_id', reviewerIds),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  const displayNameByUser = new Map((profileResult.data ?? []).map((profile) => [profile.user_id, profile.display_name]));
+  const roleByUser = new Map((memberResult.data ?? []).map((member) => [member.user_id, member.role]));
+  const reviewRows = rawReviewRows.map((row) => ({
+    ...row,
+    actor_label: displayNameByUser.get(row.user_id) || (roleByUser.get(row.user_id) === 'lead' ? 'Project lead' : 'Project reviewer'),
+  }));
+  const reviewHistory = groupReviewHistory(reviewRows);
+  for (const row of reviewRows) {
     const currentVersion = claims.find((claim) => claim.id === row.claim_id)?.version;
     if (currentVersion !== row.claim_version) continue;
     if (reviews[row.claim_id]?.disposition !== 'pending') continue;
@@ -122,5 +136,5 @@ export async function GET(_request: Request, context: { params: Promise<{ projec
     importedNames: sources.filter((source) => (source.metadata as Record<string, unknown>).relayops_import === true).map((source) => source.title),
   };
   const extractionMode = claims.some((claim) => claim.extraction_run_id) ? 'nebius' : 'deterministic';
-  return Response.json({ project: { id: project.id, name: project.name, description: project.description, slug: project.slug, revision: project.revision }, access, state, snapshotId: approvedSnapshot?.id ?? null, snapshotVersion: approvedSnapshot?.version ?? null, claimVersions: Object.fromEntries(claims.map((claim) => [claim.id, claim.version])), handoverReady: Boolean(approvedSnapshot), extractionMode }, { headers: { 'Cache-Control': 'no-store' } });
+  return Response.json({ project: { id: project.id, name: project.name, description: project.description, slug: project.slug, revision: project.revision }, access, state, ...(access.role === 'contributor' ? {} : { reviewHistory }), snapshotId: approvedSnapshot?.id ?? null, snapshotVersion: approvedSnapshot?.version ?? null, claimVersions: Object.fromEntries(claims.map((claim) => [claim.id, claim.version])), handoverReady: Boolean(approvedSnapshot), extractionMode }, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -94,7 +94,7 @@ def redact(request: RedactionRequest):
 @app.post("/extract", response_model=ExtractResponse, dependencies=[Depends(require_internal_key)])
 async def extract(request: ExtractRequest):
     if not os.getenv("NEBIUS_API_KEY", "").strip():
-        raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to .env.local and restart the extractor.")
+        raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to the extractor service and restart it.")
     total_chars = sum(len(passage.content) for passage in request.passages)
     if total_chars > 200_000:
         raise HTTPException(status_code=413, detail="Limit one extraction to 200,000 characters. Split the source set and retry.")
@@ -130,7 +130,7 @@ async def extract(request: ExtractRequest):
 @app.post("/embed-query", dependencies=[Depends(require_internal_key)])
 async def embed_query(request: EmbedQueryRequest):
     if not os.getenv("NEBIUS_API_KEY", "").strip():
-        raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to .env.local and restart the extractor.")
+        raise HTTPException(status_code=503, detail="Nebius is not configured. Add NEBIUS_API_KEY to the extractor service and restart it.")
     safe_query = redact_sensitive_content(request.query)
     try:
         vector = await embed_query_text(safe_query)

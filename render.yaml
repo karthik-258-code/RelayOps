@@ -11,3 +11,67 @@ services:
         value: "true"
       - key: NODE_VERSION
         value: "22.22.0"
+
+  - type: web
+    runtime: node
+    name: relayops-round2-web
+    branch: codex/relayops-round2
+    region: singapore
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    envVars:
+      - fromGroup: relayops-extractor-auth
+      - key: NODE_VERSION
+        value: "22.22.0"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_BASE_URL
+        value: https://api.tokenfactory.nebius.com/v1
+      - key: NEBIUS_MODEL
+        value: Qwen/Qwen3.5-397B-A17B
+      - key: NEBIUS_EMBEDDING_MODEL
+        value: Qwen/Qwen3-Embedding-8B
+      - key: EXTRACTOR_URL
+        fromService:
+          name: relayops-round2-extractor
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    runtime: python
+    name: relayops-round2-extractor
+    branch: codex/relayops-round2
+    rootDir: services/extractor
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt && python -m spacy download en_core_web_sm
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - fromGroup: relayops-extractor-auth
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_BASE_URL
+        value: https://api.tokenfactory.nebius.com/v1
+      - key: NEBIUS_MODEL
+        value: Qwen/Qwen3.5-397B-A17B
+      - key: NEBIUS_EMBEDDING_MODEL
+        value: Qwen/Qwen3-Embedding-8B
+
+envVarGroups:
+  - name: relayops-extractor-auth
+    envVars:
+      - key: EXTRACTOR_SHARED_TOKEN
+        generateValue: true

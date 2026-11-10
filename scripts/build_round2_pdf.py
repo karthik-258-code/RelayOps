@@ -21,16 +21,16 @@ styles.add(ParagraphStyle(name='ReportTitle', parent=styles['Title'], fontName='
 styles.add(ParagraphStyle(name='Deck', parent=styles['Normal'], fontName='Helvetica', fontSize=11, leading=16, textColor=muted, spaceAfter=16))
 styles.add(ParagraphStyle(name='Section', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=15.5, leading=18, textColor=accent, spaceBefore=9, spaceAfter=5, keepWithNext=True))
 styles.add(ParagraphStyle(name='Subsection', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, leading=15, textColor=ink, spaceBefore=8, spaceAfter=4, keepWithNext=True))
-styles.add(ParagraphStyle(name='BodyReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=9.2, leading=13, textColor=ink, spaceAfter=4))
-styles.add(ParagraphStyle(name='BulletReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=8.9, leading=10.9, textColor=ink, leftIndent=13, firstLineIndent=-8, spaceAfter=1.2))
+styles.add(ParagraphStyle(name='BodyReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=9.2, leading=12.2, textColor=ink, spaceAfter=3))
+styles.add(ParagraphStyle(name='BulletReport', parent=styles['BodyText'], fontName='Helvetica', fontSize=8.9, leading=10.2, textColor=ink, leftIndent=13, firstLineIndent=-8, spaceAfter=0.8))
 styles.add(ParagraphStyle(name='MonoReport', parent=styles['BodyText'], fontName='Courier', fontSize=8, leading=11, textColor=ink, backColor=pale, borderPadding=7, leftIndent=8, rightIndent=8, spaceBefore=4, spaceAfter=8))
 
 def inline(text):
-    text = escape(text)
     import re
+    text = re.sub(r'<(https?://[^ ]+)>', r'\1', text)
+    text = escape(text)
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', text)
-    text = re.sub(r'<(https?://[^ ]+)>', r'<link href="\1" color="#1b7158">\1</link>', text)
     return text
 
 def page_chrome(canvas, doc):

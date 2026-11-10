@@ -26,7 +26,7 @@ The seeded local database provides two sample accounts. Choose **Project lead** 
 | Project lead | `lead@relayops.local` | `RelayOpsDemo!2026` |
 | Incoming contributor | `contributor@relayops.local` | `RelayOpsDemo!2026` |
 
-These credentials exist only in the local seeded database. They are not production accounts.
+These credentials exist in the synthetic demo database only. Never use them for real project data.
 
 ## Main workflow
 
@@ -34,7 +34,7 @@ These credentials exist only in the local seeded database. They are not producti
 2. Add up to 10 `.md` or `.json` files (2 MB each), or enter a GitHub repository URL. Notion pages can be exported as Markdown. JSON accepts RelayOps source records, Linear issue arrays (`issues`), Slack exports (`messages` or a top-level message array), and DiscordChatExporter channel exports (`provider: "discord"`). Slack and Discord replies are grouped by thread; timestamps, authors, and per-channel/message clearance are retained. Explicit `Decision:`, `Owner:`, `Blocker:`, `Risk:`, and `Next action:` labels become evidence observations. GitHub imports a bounded sample of README/docs, recent commits and selected diffs, issues/comments, PRs/reviews/conversation comments/code review comments. Results are capped at 50 records. Public repositories need no token. Private imports use a fine-grained read-only token for that request only.
 3. Review **Reconstruct** for the decision timeline, ownership map, blockers/risks, and next actions. Structured Markdown/JSON facts are grouped deterministically. With an active Nebius Token Factory key, select **Run Nebius extraction**; every model fact must cite an exact quote in a stored passage, and only verified citations are persisted. pgvector embeddings and temporal entity relationships are saved when available.
 4. Inspect **Verify** for contradictions and missing evidence. With Nebius configured and passage embeddings generated, search source records with a natural-language question; pgvector returns clearance-filtered matches with links to their source.
-5. In **Review**, a lead or reviewer confirms, resolves, accepts uncertainty, or excludes each finding. Only a project lead can approve. Decisions are written to PostgreSQL with an optimistic version check.
+5. In **Review**, a lead or reviewer confirms, resolves, accepts uncertainty, or excludes each finding. Missing-evidence findings include a short, category-specific exit-interview prompt. Save the contributor’s answer as a cited source; RelayOps leaves the claim pending for a human decision. Prior decisions and saved wording remain visible in that finding’s history. Only a project lead can approve. Decisions are written to PostgreSQL with an optimistic version check.
 6. Approval creates a versioned snapshot. The contributor account sees no project evidence until that snapshot is approved. The recipient can acknowledge receipt against that snapshot.
 
 ## Enable Nebius Token Factory
@@ -50,12 +50,31 @@ NEBIUS_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B
 
 Restart both Next.js and the extractor, then open **Reconstruct** and choose **Run Nebius extraction**. The default chat model is `Qwen/Qwen3.5-397B-A17B`; embeddings use `Qwen/Qwen3-Embedding-8B` truncated to the database's 768 dimensions. Override `NEBIUS_MODEL`, `NEBIUS_EMBEDDING_MODEL`, and `NEBIUS_BASE_URL` if your Token Factory project exposes different models or an account-specific endpoint. The app uses Nebius' OpenAI-compatible chat and embeddings API. A missing or failed key does not create pretend AI results: deterministic imported facts remain available, the UI explains setup, and the model cannot approve a handover.
 
+## Deploy a judge demo on Render
+
+The repository's [`render.yaml`](render.yaml) defines a server-rendered Next.js web service and a FastAPI extractor. The old static GitHub Pages/Render site cannot run this workflow's protected APIs. The blueprint keeps that static service separate because Render cannot change an existing static service into a web service.
+
+1. Create a hosted Supabase project with PostgreSQL 17. In PowerShell, link this repository to that project, push the migrations, and seed only the synthetic Project Chronos demo:
+
+   ```powershell
+   npx supabase link --project-ref YOUR_PROJECT_REF
+   npx supabase db push
+   npx supabase db query --remote --file supabase/seed.sql
+   ```
+
+2. In Render, create or sync a Blueprint from this repository and branch `codex/relayops-round2`. It adds `relayops-round2-web` and `relayops-round2-extractor`.
+3. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` on the web service. Set `NEBIUS_API_KEY` on both services. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Render generates the shared extractor token and links the extractor URL through the Blueprint.
+4. Set the hosted app URL as the Supabase Auth Site URL after Render assigns it. Confirm the deployed services report healthy, then sign in with the synthetic Project Lead or Incoming Contributor account and complete the workflow.
+
+The seed includes publicly usable demo credentials for synthetic data. Never seed this password or Project Chronos into a database containing real project information. Render blueprint details follow [Render’s Next.js web-service guide](https://render.com/docs/deploy-nextjs-app) and [Blueprint reference](https://render.com/docs/blueprint-spec); environment secrets belong in the Render dashboard, not `render.yaml`.
+
 ## Architecture
 
 - **Next.js 16 / React 19 / TypeScript:** server-rendered public pages, cookie-based Supabase Auth, protected APIs, Octokit GitHub ingestion, Zod request validation, and the review UI.
 - **Supabase local stack / PostgreSQL 17 / pgvector:** migrations, Auth, relational evidence, exact passages, 768-dimensional vectors, temporal entity edges, review history, approved snapshots, and receipt acknowledgements.
 - **FastAPI / Pydantic / LangGraph:** local privacy filtering, Nebius Token Factory structured extraction, exact citation validation, temporal conflict grouping, and embedding generation.
 - **Microsoft Presidio plus deterministic scanners:** run before source storage when the extractor is available. Common provider tokens, credentials, contact details, and private-key blocks are masked. Names remain available for ownership extraction.
+- **Human interview and history:** text answers to category-specific gap prompts are saved as clearance-filtered, exact-quote context. A separate review decision remains mandatory. History retains each decision, note, wording, time, and claim version; it is not cryptographically tamper-evident.
 - **Human decision boundary:** model findings enter as unapproved data. Database policies and server access checks enforce project membership and clearance; lower-clearance APIs omit restricted source IDs, text, citations, and graph edges.
 
 Useful checks:
@@ -76,7 +95,7 @@ npm run build
 - Nebius extraction and semantic evidence search require a Token Factory API key and model access. If the key is missing, the deterministic Markdown/JSON path still works and unstructured content stays a visible evidence gap.
 - Private GitHub import requires a user-provided read-only token. The importer captures a bounded, recent set of repository records, selected diffs, and Markdown documentation; it does not monitor future changes or mirror the full repository history.
 - Long source imports and Nebius extractions take a project mutation lock that heartbeats while active. If the server stops mid-update, retry the import or extraction after the 15-minute lease expires; approval remains blocked until the retry completes.
-- Authentication users and sample roles are seeded locally. A public deployment needs hosted Supabase project credentials and production auth configuration; the local demo key and demo passwords must never be deployed.
+- Seeded accounts are for the synthetic Chronos demo only. Never use the published demo credentials for real project data.
 - The project should be run with the local Supabase stack and FastAPI extractor for complete Round 2 behavior. Static GitHub Pages cannot run these APIs or keep their credentials private. Render deployment needs a hosted Supabase project, environment variables, and a server-backed Next.js service; the existing static deployment is not the working Round 2 link.
 
 See [Round 2 submission notes](docs/round-2-submission.md) for the feature list, implementation details, changes from the original proposal, limitations, and Round 3 commitments.

@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(49);
 
 insert into auth.users (id, email)
 values
@@ -27,7 +27,8 @@ values
 insert into public.claims (id, project_id, title, category, statement, status, clearance)
 values
   ('40000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'Visible claim', 'decision', 'Public', 'needs_review', 1),
-  ('40000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001', 'Restricted claim', 'risk', 'Secret', 'needs_review', 3);
+  ('40000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001', 'Restricted claim', 'risk', 'Secret', 'needs_review', 3),
+  ('40000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000001', 'Unclear ownership', 'ownership', 'Ownership needs clarification', 'missing_evidence', 1);
 
 insert into public.source_passages (id, project_id, source_id, passage_index, content, content_hash, clearance)
 values ('31000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 0, 'The database migration is scheduled for Friday.', repeat('c', 64), 1);
@@ -65,7 +66,7 @@ set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
 select results_eq('select count(*) from public.projects', array[1::bigint], 'member sees only their project');
 select results_eq('select count(*) from public.sources', array[1::bigint], 'clearance 1 member sees only clearance 1 source');
-select results_eq('select count(*) from public.claims', array[1::bigint], 'clearance 1 member sees only clearance 1 claim');
+select results_eq('select count(*) from public.claims', array[2::bigint], 'clearance 1 member sees only clearance 1 claims, including the evidence gap');
 select results_eq(
   $$select count(*) from public.match_project_passages('20000000-0000-4000-8000-000000000001', ('[' || repeat('0,', 767) || '0]')::extensions.vector(768), 3::smallint, 12)$$,
   array[1::bigint], 'vector RPC honors RLS even when caller requests restricted clearance'
@@ -76,6 +77,7 @@ select results_eq(
 );
 select ok(not has_table_privilege('authenticated', 'public.projects', 'INSERT'), 'client cannot create projects or self-assign lead');
 select ok(not has_table_privilege('authenticated', 'public.project_members', 'INSERT'), 'client cannot elevate their own clearance');
+select ok(not has_function_privilege('authenticated', 'public.record_exit_interview_response(uuid,uuid,uuid,integer,text,text)', 'EXECUTE'), 'authenticated clients cannot call the privileged interview RPC');
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
 select results_eq('select count(*) from public.projects', array[0::bigint], 'nonmember sees no private projects');
@@ -103,6 +105,34 @@ select set_config('request.headers', '{"x-relayops-mutation-token":"50000000-000
 select lives_ok(
   $$update public.sources set title = 'Fenced valid write' where id = '30000000-0000-4000-8000-000000000001'$$,
   'writes carrying the active mutation token are accepted'
+);
+select lives_ok(
+  $$select public.record_exit_interview_response('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', 1, 'What should the next teammate know?', 'The service owner rotates the signing key every quarter.')$$,
+  'a project lead can add a cited answer to an evidence gap'
+);
+select results_eq(
+  $$select count(*) from public.sources s join public.source_passages p on p.source_id = s.id and p.project_id = s.project_id where s.project_id = '20000000-0000-4000-8000-000000000001' and s.metadata->>'record_type' = 'exit_interview' and p.content = 'The service owner rotates the signing key every quarter.'$$,
+  array[1::bigint], 'interview answer is persisted as a provenance-tagged source passage'
+);
+select results_eq(
+  $$select count(*) from public.citations c join public.source_passages p on p.id = c.passage_id and p.project_id = c.project_id where c.claim_id = '40000000-0000-4000-8000-000000000003' and c.quote = p.content and c.start_offset = 0 and c.end_offset = char_length(p.content)$$,
+  array[1::bigint], 'interview answer is attached to the original claim with exact offsets'
+);
+select results_eq(
+  $$select version from public.claims where id = '40000000-0000-4000-8000-000000000003'$$,
+  array[2], 'adding testimony increments the claim version and requires fresh review'
+);
+select results_eq(
+  $$select count(*) from public.review_decisions where claim_id = '40000000-0000-4000-8000-000000000003'$$,
+  array[0::bigint], 'interview capture does not make a reviewer decision'
+);
+select throws_ok(
+  $$select public.record_exit_interview_response('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000002', 2, 'Question', 'Contributor response')$$,
+  '42501', 'Project reviewer access is required', 'a contributor cannot write an interview answer through the privileged RPC'
+);
+select throws_ok(
+  $$select public.record_exit_interview_response('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', 1, 'Question', 'Duplicate stale response')$$,
+  '40001', 'This finding changed since it was opened. Reload and try again.', 'stale interview submissions are rejected without duplication'
 );
 select lives_ok(
   $$select public.heartbeat_project_mutation('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001')$$,
@@ -156,6 +186,10 @@ select throws_ok(
 select lives_ok(
   $$select public.record_review_decision('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 3, 'confirmed', null, '')$$,
   'lead can re-review a changed claim version'
+);
+select lives_ok(
+  $$select public.record_review_decision('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', 2, 'confirmed', null, '')$$,
+  'an interview response requires and accepts a separate human review decision'
 );
 select lives_ok(
   $$select public.approve_project('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001')$$,

@@ -51,7 +51,7 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   const access = await getProjectAccess(user.id, projectId);
   if (!access) return jsonError(404, 'PROJECT_NOT_FOUND', 'This project is not available to your account.');
   if (!['lead', 'reviewer'].includes(access.role)) return jsonError(403, 'REVIEWER_REQUIRED', 'A project lead or reviewer must run extraction.');
-  if (!process.env.NEBIUS_API_KEY?.trim()) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Add NEBIUS_API_KEY to the root .env.local file, then restart Next.js and the extractor.');
+  if (!process.env.NEBIUS_API_KEY?.trim()) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Configure NEBIUS_API_KEY for the web and extractor services, then restart or redeploy both.');
   const extractorUrl = process.env.EXTRACTOR_URL;
   const sharedToken = process.env.EXTRACTOR_SHARED_TOKEN;
   if (!extractorUrl || !sharedToken) return jsonError(503, 'EXTRACTOR_NOT_CONFIGURED', 'Local extractor settings are missing. Run scripts/setup-local-env.ps1.');
@@ -68,9 +68,9 @@ export async function POST(_request: Request, context: { params: Promise<{ proje
   if (passageError || !passages?.length) return jsonError(409, 'NO_STORED_PASSAGES', 'This project has no stored source passages to extract.');
 
   const healthResponse = await fetch(`${extractorUrl.replace(/\/$/, '')}/health`, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }).catch(() => null);
-  if (!healthResponse?.ok) return jsonError(503, 'EXTRACTOR_OFFLINE', 'Start the local extractor with services/extractor/scripts/start.ps1, then retry.');
+  if (!healthResponse?.ok) return jsonError(503, 'EXTRACTOR_OFFLINE', 'Check that EXTRACTOR_URL points to a healthy extractor service, then retry.');
   const health = await healthResponse.json();
-  if (!health.model_configured) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Add NEBIUS_API_KEY to the root .env.local file, then restart Next.js and the extractor.');
+  if (!health.model_configured) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Configure NEBIUS_API_KEY on the extractor service, then restart or redeploy it.');
 
   // Lock the project for this long-running extraction so approval cannot snapshot a partial write.
   return withProjectMutation(projectId, async (admin) => {

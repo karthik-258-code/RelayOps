@@ -11,10 +11,10 @@ Development remains local until the team chooses to push or deploy. Credentials 
 1. **Connect:** Load Project Chronos, import Markdown/JSON, and connect a public or authorized GitHub repository. Record source IDs, timestamps, authors, URLs, and clearance tiers.
 2. **Reconstruct:** Build temporal relationships across developers, files/modules, commits, pull requests, issues, and discussion/document records. Produce a decision timeline, ownership map, blockers/risks, and next actions.
 3. **Verify:** Use schema-constrained Gemini extraction with citations bound to stored source passages. Combine it with deterministic temporal and cross-source checks. Mark supported claims `VERIFIED`, disagreements `CONFLICT`, and unsupported claims `MISSING EVIDENCE`; never let model output choose a winner.
-4. **Review:** Keep the existing human review queue and approval gate. Persist edits, dispositions, and approved snapshots with an auditable change history.
+4. **Review:** Keep the existing human review queue and approval gate. Offer short, category-specific text interview prompts for missing-evidence claims; save each answer as cited source context and require a separate reviewer decision. Persist edits and dispositions as an append-only decision history, then create approved snapshots.
 5. **Handover:** Apply clearance filtering before data reaches the incoming view. Redact secrets and sensitive identifiers at ingestion and before rendering. Preserve role-specific evidence links and receipt acknowledgement.
 
-The three Round 3 commitments remain voice exit interviews, an interactive dependency graph and Day-1 runbook, and cryptographic audit/version diff/receipt export. They are not counted as completed Round 2 work.
+The three Round 3 commitments remain voice recording/transcription for exit interviews, an interactive dependency graph and Day-1 runbook, and cryptographic audit/version diff/receipt export. Text answers and basic decision history are Round 2; audio and tamper-evident history remain Round 3.
 
 ## Architecture
 
@@ -59,7 +59,7 @@ Project Chronos / Markdown / GitHub
 
 ## Scope boundaries
 
-Round 2 scope is the original proposal's live GitHub/Project Chronos intake, temporal state reconstruction, structured LLM extraction, contradiction auditing, citation inspection, human review and approval, role-based server filtering, redaction, persisted handover, and receipt acknowledgement. Voice recording, interactive dependency/runbook UI, and cryptographic receipt/PDF export remain the three Round 3 commitments.
+Round 2 scope is the original proposal's live GitHub/Project Chronos intake, temporal state reconstruction, structured LLM extraction, contradiction auditing, citation inspection, guided text exit interview, append-only human decision history, approval, role-based server filtering, redaction, persisted handover, and receipt acknowledgement. Voice recording/transcription, interactive dependency/runbook UI, and cryptographic audit/version diff/receipt PDF export remain the three Round 3 commitments.
 
 ## Open implementation decisions to verify before coding
 
@@ -78,4 +78,6 @@ Round 2 scope is the original proposal's live GitHub/Project Chronos intake, tem
 - A lower-clearance contributor cannot retrieve restricted source text, claims, IDs, citations, graph edges, or vector matches through server APIs or database queries.
 - Secret/PII scanner masks seeded test patterns before storage/output.
 - Approval gates the incoming handover, and receipt acknowledgement is persisted against the approved version.
+- A project lead or reviewer can capture a category-specific text response to a missing-evidence prompt; the exact answer becomes clearance-tagged cited context, increments the claim version, and remains pending until a human review decision.
+- Review history shows actor, disposition, note, saved wording, timestamp, and claim version; contributors do not receive reviewer history.
 - App clearly separates working integrations from missing credentials and never represents local deterministic behavior as live GitHub or AI output.
