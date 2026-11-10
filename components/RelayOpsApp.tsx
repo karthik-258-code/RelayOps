@@ -90,6 +90,16 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
     } finally { setBusy(false); }
   }
 
+  async function finishGitHubImport(message: string) {
+    setBusy(true);
+    try {
+      await refreshWorkspace();
+      setFilter('all');
+      setActiveStage(1);
+      setStorageNotice(message);
+    } finally { setBusy(false); }
+  }
+
   async function approve() {
     if (!canApprove(project) || accessRole !== 'lead') return;
     setBusy(true);
@@ -206,7 +216,7 @@ export function RelayOpsApp({ projectId, accessRole, clearance }: { projectId: s
       {accessRole === 'contributor' && !handoverReady ? <section className="incoming-waiting"><span className="incoming-waiting-mark"><Icon name="lock" /></span><p className="panel-kicker">HANDOVER NOT PUBLISHED</p><h2>Your project context is being reviewed.</h2><p>The project lead will make the approved records available here once each finding has a human decision.</p><button type="button" className="button button-secondary" onClick={() => void refreshWorkspace()} disabled={busy}>Check for an update <Icon name="refresh" /></button></section>
       : activeStage === 0 ? <section className="connect-view">
         <div className="stage-page-heading connect-page-heading"><div><h2>Bring the project records together</h2><p>Start with the synthetic Project Chronos sample or add local Markdown and RelayOps JSON files you’re authorised to use.</p></div>{accessRole === 'contributor' ? <span className="workspace-label">Source connections need a reviewer</span> : <ImportSources onImport={importSources} />}</div>
-        <div className="connect-content"><GitHubImport projectId={projectId} onImport={importSources} /><div className="source-safety"><Icon name="lock" /><p><strong>Private by default.</strong> Source content is redacted for common credentials and contact details before storage. Only authorised project material should be imported.</p></div>
+        <div className="connect-content"><GitHubImport projectId={projectId} onImport={finishGitHubImport} /><div className="source-safety"><Icon name="lock" /><p><strong>Private by default.</strong> Source content is redacted for common credentials and contact details before storage. Only authorised project material should be imported.</p></div>
           <details className="connect-source-list"><summary><span>Connected sources</span><span>{project.sources.length} records</span></summary><div className="source-table-wrap"><div className="source-table" role="table" aria-label="Connected project sources"><div className="source-table-header" role="row"><span role="columnheader">Source</span><span role="columnheader">Type</span><span role="columnheader">Updated</span><span role="columnheader">Access</span></div>
             {project.sources.map((source) => <div className="source-table-row" role="row" key={source.id}><div role="cell"><span className="file-icon"><Icon name="file" /></span><span><strong>{source.title}</strong><small className="mono">{source.id}</small></span></div><span role="cell">{source.kind}</span><time role="cell" dateTime={source.occurredAt}>{new Date(source.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</time><span role="cell" className={`tier-label tier-${source.clearance}`}>Tier {source.clearance}</span></div>)}
           </div></div></details>

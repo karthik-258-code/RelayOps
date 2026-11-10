@@ -5,6 +5,7 @@ import { parseMarkdownSource } from '@/lib/ingestion/parse-workspace';
 import { parseGitHubRepositoryUrl } from '@/lib/github/repository';
 import { detectOrphanedOwnership } from '@/lib/reconstruction/orphaned-ownership';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
+import { persistSourceBatch } from '@/lib/server/persist-source-batch';
 import type { SourceRecord } from '@/lib/domain/types';
 
 const bodySchema = z.object({ url: z.string().url().max(500), token: z.string().max(500).optional() }).strict();
@@ -167,7 +168,14 @@ export async function POST(request: Request, context: { params: Promise<{ projec
         source.observations.push({ topic, category: 'ownership', statement, value: `${signal.author.toLocaleLowerCase()}:${signal.commitCount}/${signal.totalCommits}`, excerpt, evidenceGap: true });
       }
     }
-    return Response.json({ repository: `${owner}/${repo}`, sources, notices }, { headers: { 'Cache-Control': 'no-store' } });
+    const repository = `${owner}/${repo}`;
+    const savedResponse = await persistSourceBatch(projectId, access.clearance, {
+      sources,
+      names: [`${repository} (GitHub)`, ...notices.map((notice) => `Partial import: ${notice}`)],
+    });
+    if (!savedResponse.ok) return savedResponse;
+    const saved = await savedResponse.json();
+    return Response.json({ repository, imported: saved.imported, findings: saved.findings, message: saved.message, notices }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch (caught) {
     const status = typeof caught === 'object' && caught && 'status' in caught ? Number(caught.status) : 0;
     if (status === 401 || status === 403) return jsonError(status, status === 403 ? 'GITHUB_RATE_LIMITED' : 'GITHUB_AUTH_FAILED', status === 403 ? 'GitHub rate limit or token permissions blocked this import. Try a fine-grained read-only token.' : 'GitHub rejected the provided token. Check its repository access and read-only permissions.');

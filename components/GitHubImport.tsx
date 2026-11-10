@@ -1,9 +1,9 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import type { SourceRecord } from '@/lib/domain/types';
+import { submitGitHubImport } from '@/lib/github/import-client';
 
-export function GitHubImport({ projectId, onImport }: { projectId: string; onImport: (sources: SourceRecord[], names: string[]) => Promise<void> }) {
+export function GitHubImport({ projectId, onImport }: { projectId: string; onImport: (message: string) => Promise<void> }) {
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
@@ -14,14 +14,8 @@ export function GitHubImport({ projectId, onImport }: { projectId: string; onImp
     setBusy(true);
     setError('');
     try {
-      const response = await fetch(`/api/v1/projects/${projectId}/github`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, ...(token ? { token } : {}) }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message ?? 'GitHub import failed.');
-      await onImport(result.sources as SourceRecord[], [`${result.repository} (GitHub)`, ...(result.notices ?? []).map((notice: string) => `Partial import: ${notice}`)]);
+      const result = await submitGitHubImport(projectId, url, token);
+      await onImport(result.message);
       setToken('');
       setUrl('');
     } catch (caught) {
@@ -35,6 +29,6 @@ export function GitHubImport({ projectId, onImport }: { projectId: string; onImp
     <input id="github-repository-url" type="url" required placeholder="https://github.com/owner/repository" value={url} onChange={(event) => setUrl(event.target.value)} autoComplete="url" />
     <details className="github-private-access"><summary>Need private repository access?</summary><label htmlFor="github-read-token">Fine-grained read-only token</label><input id="github-read-token" type="password" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste for this import only" /><small>Read access to repository Metadata, Contents, Issues, and Pull requests. Cleared after import; never saved.</small></details>
     {error && <p className="github-import-error" role="alert">{error}</p>}
-    <button className="button button-secondary" type="submit" disabled={busy}>{busy ? 'Reading repository…' : 'Import repository'} <span aria-hidden="true">↗</span></button>
+    <button className="button button-secondary" type="submit" disabled={busy}>{busy ? 'Importing and checking…' : 'Import repository'} <span aria-hidden="true">↗</span></button>
   </form>;
 }
