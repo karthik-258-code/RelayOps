@@ -74,3 +74,16 @@ test('keeps health guidance present through checking, ready, offline, and missin
   assert.match(offline, /Recheck/);
   assert.match(offline, /extractor-health-help--error/);
 });
+
+test('reconstruction footer keeps the note, actions, and extractor status in explicit regions', () => {
+  const html = renderToStaticMarkup(createElement(ReconstructView, {
+    claims: [],
+    sources: [{ id: 'source-1', title: 'Chronos README', kind: 'repository', occurredAt: '2026-11-11T00:00:00.000Z', author: 'Lead', clearance: 1, content: 'Chronos', observations: [] }],
+    onContinue() {}, onExtract() {}, onOpenFinding() {},
+    extracting: false, extractionMode: 'nebius',
+  }));
+
+  assert.match(html, /class="stage-page-footer reconstruct-footer"/);
+  assert.match(html, /class="reconstruct-actions"[^>]*>[\s\S]*class="button button-secondary reconstruct-run-button"[\s\S]*class="extractor-health-control[^>]*>[\s\S]*class="button button-primary reconstruct-continue-button"/);
+  assert.match(html, /Model output stays unapproved until a human reviews it\./);
+});
