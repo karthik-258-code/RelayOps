@@ -13,7 +13,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { matchesCodePointCitation } from '@/lib/ingestion/persisted-citations';
 import { chunkValues } from '@/lib/utils/chunk-values';
 
-export const maxDuration = 300;
+export const maxDuration = 600;
 
 const resultSchema = z.object({
   extraction_mode: z.literal('nebius'),

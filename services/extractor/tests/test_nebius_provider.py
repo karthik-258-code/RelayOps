@@ -15,7 +15,7 @@ class NebiusProviderTests(unittest.TestCase):
         openai_client.assert_called_once_with(
             api_key="test-nebius-key",
             base_url="https://api.tokenfactory.nebius.com/v1",
-            timeout=85,
+            timeout=120,
             max_retries=0,
         )
 

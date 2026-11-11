@@ -62,12 +62,16 @@ test('does not split a single passage after extraction timeout', () => {
 test('bounds sequential batches by one shared operation deadline', () => {
   let now = 0;
   const budget = createExtractionBudget(MAX_EXTRACTION_OPERATION_MS, () => now);
+  assert.equal(MAX_EXTRACTION_OPERATION_MS, 510_000);
+  assert.equal(EXTRACTION_PERSISTENCE_RESERVE_MS, 90_000);
+  assert.equal(MAX_EXTRACTOR_BATCH_MS, 210_000);
+  assert.equal(EXTRACTION_ROUTE_MAX_DURATION_MS, 600_000);
   assert.equal(MAX_EXTRACTION_OPERATION_MS + EXTRACTION_PERSISTENCE_RESERVE_MS, EXTRACTION_ROUTE_MAX_DURATION_MS);
   assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), MAX_EXTRACTOR_BATCH_MS);
   now = 200_000;
-  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), 40_000);
-  now = 230_000;
-  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), 10_000);
+  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), MAX_EXTRACTOR_BATCH_MS);
+  now = 450_000;
+  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), 60_000);
   now = MAX_EXTRACTION_OPERATION_MS;
   assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), null);
 });

@@ -36,7 +36,7 @@ class ProviderFailureTests(unittest.TestCase):
         error = type("APITimeoutError", (TimeoutError,), {})("private prompt and token")
         status, detail, provider_status = classify_nebius_failure(error)
         self.assertEqual(status, 504)
-        self.assertIn("4 minutes", detail)
+        self.assertIn("2 minutes", detail)
         self.assertNotIn("private", detail)
         self.assertIsNone(provider_status)
 

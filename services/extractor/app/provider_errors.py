@@ -6,7 +6,7 @@ def classify_nebius_failure(error: Exception) -> tuple[int, str, int | str | Non
     if type(error).__name__ == "ModelOutputTruncatedError":
         return 502, "Nebius reached its structured-output limit for this batch. Retry after narrowing the source set.", None
     if type(error).__name__ in {"APITimeoutError", "TimeoutError"}:
-        return 504, "Nebius did not finish this extraction batch within 4 minutes. Imported sources remain saved; retry when the service is responsive.", None
+        return 504, "Nebius did not finish this extraction batch within 2 minutes. Imported sources remain saved; retry when the service is responsive.", None
     response = getattr(error, "response", None)
     raw_status = getattr(error, "status_code", None) or getattr(response, "status_code", None) or getattr(error, "code", None)
     status: int | str | None = raw_status if isinstance(raw_status, (int, str)) else None

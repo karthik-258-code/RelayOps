@@ -8,10 +8,10 @@ export const MAX_EXTRACTOR_PASSAGES = 25;
 export const MAX_EXTRACTOR_PASSAGE_CHARACTERS = 30_000;
 export const MAX_EXTRACTION_BATCH_CHARACTERS = 50_000;
 export const MAX_EXTRACTION_CHARACTERS = 200_000;
-export const EXTRACTION_PERSISTENCE_RESERVE_MS = 60_000;
-export const MAX_EXTRACTION_OPERATION_MS = 240_000;
+export const EXTRACTION_PERSISTENCE_RESERVE_MS = 90_000;
+export const MAX_EXTRACTION_OPERATION_MS = 510_000;
 export const MAX_EXTRACTOR_BATCH_MS = 210_000;
-export const EXTRACTION_ROUTE_MAX_DURATION_MS = 300_000;
+export const EXTRACTION_ROUTE_MAX_DURATION_MS = 600_000;
 
 export function createExtractionBudget(totalMs: number, now: () => number = Date.now) {
   if (!Number.isFinite(totalMs) || totalMs <= 0) throw new RangeError('Extraction budget must be positive.');

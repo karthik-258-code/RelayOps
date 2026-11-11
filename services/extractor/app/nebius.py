@@ -22,7 +22,7 @@ def create_client() -> OpenAI:
     if not api_key:
         raise RuntimeError("NEBIUS_API_KEY is not configured")
     base_url = os.getenv("NEBIUS_BASE_URL", BASE_URL).strip().rstrip("/")
-    return OpenAI(api_key=api_key, base_url=base_url, timeout=85, max_retries=0)
+    return OpenAI(api_key=api_key, base_url=base_url, timeout=120, max_retries=0)
 
 
 def generate_json(client: Any, prompt: str, *, model: str = CHAT_MODEL) -> str:
