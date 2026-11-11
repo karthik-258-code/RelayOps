@@ -251,6 +251,8 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .button-secondary:hover:not(:disabled) { background: #f1f5f2; border-color: #b6c9bf; }
 .button-quiet { background: transparent; color: var(--muted); }
 .button-quiet:hover:not(:disabled) { background: #f2f4f1; color: var(--ink); }
+.extractor-health-link { border-color: #dce7df; background: #f4f7f4; color: var(--green-dark); text-decoration: none; }
+.extractor-health-link:hover { border-color: #c8d8cd; background: #eaf2ed; color: var(--green-dark); }
 .decision-summary { font-size: 11px; color: #4e5a55; }
 .decision-summary p { margin: 0 0 8px; }
 .decision-summary blockquote { margin: 0 0 9px; padding: 8px 10px; border: 1px solid #dce8e0; border-radius: 5px; background: #f3f7f4; line-height: 1.5; }
