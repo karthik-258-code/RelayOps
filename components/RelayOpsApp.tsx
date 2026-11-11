@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ClaimQueue } from "./ClaimQueue";
 import { ClaimReview } from "./ClaimReview";
@@ -39,6 +39,7 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
   const [busy, setBusy] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState<ExtractionProgressEvent | null>(null);
   const [workspaceLabel, setWorkspaceLabel] = useState('Workspace');
+  const extractionScrollAdjusted = useRef(false);
 
   useEffect(() => {
     setWorkspaceLabel(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'Local workspace' : 'Judge demo');
@@ -46,6 +47,27 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
     // The project id is fixed for this signed-in workspace session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  useEffect(() => {
+    if (!busy || activeStage !== 1 || !extractionProgress) {
+      extractionScrollAdjusted.current = false;
+      return;
+    }
+    if (extractionScrollAdjusted.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const dock = document.querySelector<HTMLElement>('.extraction-progress-dock');
+      const footer = document.querySelector<HTMLElement>('.reconstruct-page .stage-page-footer');
+      if (!dock || !footer) return;
+      extractionScrollAdjusted.current = true;
+      const dockStyle = window.getComputedStyle(dock);
+      const dockBottom = Number.parseFloat(dockStyle.bottom) || 14;
+      const dockMaxHeight = Number.parseFloat(dockStyle.maxHeight) || Math.min(window.innerHeight * 0.42, 270);
+      const lowestDockTop = window.innerHeight - dockBottom - dockMaxHeight;
+      const overlap = footer.getBoundingClientRect().bottom - lowestDockTop + 18;
+      if (overlap > 0) window.scrollBy({ top: overlap, behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [busy, activeStage, extractionProgress?.stage]);
 
   async function refreshWorkspace(firstLoad = false) {
     try {
@@ -219,7 +241,7 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
         <button className="icon-button" type="button" onClick={resetDemo} aria-label="Reload saved workspace" title="Reload saved workspace" disabled={busy}><Icon name="refresh" /></button>
       </div>
     </header>
-    <main id="top" className="page-wrap">
+    <main id="top" className="page-wrap" data-extraction-active={activeStage === 1 && busy ? "true" : undefined}>
       <WorkflowHeader project={project} projectName={projectName} activeStage={activeStage} onStageChange={handleStageChange} />
       {storageWarning && <p className="notice-line storage-warning" role="status">{storageWarning}</p>}
       {storageNotice && <p className="notice-line" role="status" aria-live="polite">{storageNotice}</p>}
@@ -227,7 +249,7 @@ export function RelayOpsApp({ projectId, projectName: initialProjectName, access
       : activeStage === 0 ? <section className="connect-view">
         <div className="stage-page-heading connect-page-heading"><div><h2>Bring the project records together</h2><p>Connect repository context or add Markdown and RelayOps JSON records you’re authorised to use.</p></div>{accessRole === 'contributor' ? <span className="workspace-label">Source connections need a reviewer</span> : <ImportSources onImport={importSources} />}</div>
         <div className="connect-content"><GitHubImport projectId={projectId} onImport={finishGitHubImport} /><div className="source-safety"><Icon name="lock" /><p><strong>Private by default.</strong> Source content is redacted for common credentials and contact details before storage. Only authorised project material should be imported.</p></div>
-          <details className="connect-source-list"><summary><span>Connected sources</span><span>{project.sources.length} records</span></summary><div className="source-table-wrap"><div className="source-table" role="table" aria-label="Connected project sources"><div className="source-table-header" role="row"><span role="columnheader">Source</span><span role="columnheader">Type</span><span role="columnheader">Updated</span><span role="columnheader">Access</span></div>
+          <details className="connect-source-list"><summary><span>Connected sources</span><span>{project.sources.length} records</span></summary><div className="source-table-wrap record-scroll" role="region" tabIndex={0} aria-label="Connected project sources"><div className="source-table" role="table" aria-label="Connected project sources"><div className="source-table-header" role="row"><span role="columnheader">Source</span><span role="columnheader">Type</span><span role="columnheader">Updated</span><span role="columnheader">Access</span></div>
             {project.sources.map((source) => <div className="source-table-row" role="row" key={source.id}><div role="cell"><span className="file-icon"><Icon name="file" /></span><span><strong>{source.title}</strong><small className="mono">{source.id}</small></span></div><span role="cell">{source.kind}</span><time role="cell" dateTime={source.occurredAt}>{new Date(source.occurredAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</time><span role="cell" className={`tier-label tier-${source.clearance}`}>Tier {source.clearance}</span></div>)}
           </div></div></details>
         </div>

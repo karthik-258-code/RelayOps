@@ -16,7 +16,7 @@ export function EvidenceInspector({ claim }: { claim: Claim | null }) {
       {claim.status === "MISSING EVIDENCE" && <div className="missing-explainer"><strong>Evidence gap.</strong> Available records point to this area, but do not explain its current state.</div>}
     </div>
     <div className="source-section-title"><h3>Supporting records</h3><span>{claim.citations.length} source{claim.citations.length === 1 ? "" : "s"}</span></div>
-    <div className="citation-list">
+    <div className="citation-list record-scroll" role="region" tabIndex={0} aria-label="Source citations">
       {claim.citations.map((citation) => <article className="citation-card" key={citation.sourceId}>
         <div className="citation-meta"><span className="source-kind">{citation.sourceKind}</span><time dateTime={citation.occurredAt}>{new Date(citation.occurredAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })}</time></div>
         <h4>{citation.sourceTitle}</h4>

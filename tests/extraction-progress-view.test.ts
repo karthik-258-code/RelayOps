@@ -43,3 +43,14 @@ test('shows indeterminate activity for pre-batch stages without inventing a prog
   assert.match(html, /extraction-progress-indeterminate/);
   assert.doesNotMatch(html, /<progress/);
 });
+
+test('renders extraction progress as a viewport dock while work is active', () => {
+  const html = renderProgress({
+    type: 'progress', stage: 'extracting_batch',
+    message: 'Sending extraction batch 1 of 5 to Nebius.',
+    batchIndex: 1, batchTotal: 5, completedBatches: 0,
+  });
+
+  assert.match(html, /class="stage-page reconstruct-page extracting"/);
+  assert.match(html, /class="extraction-progress-panel extraction-progress-dock"/);
+});

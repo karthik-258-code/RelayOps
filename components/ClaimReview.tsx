@@ -67,7 +67,7 @@ export function ClaimReview({ claim, review, history = [], onDecision, onIntervi
   {pending && claim.status === "MISSING EVIDENCE" && canReview && onInterview && <ExitInterview claim={claim} busy={busy} onSubmit={onInterview} />}
   {history.length > 0 && <section className="decision-history" aria-labelledby="decision-history-title">
     <div className="decision-history-heading"><div><p className="panel-kicker">PROJECT RECORD</p><h4 id="decision-history-title">Decision history</h4></div><span>{history.length} {history.length === 1 ? "entry" : "entries"}</span></div>
-    <ol>{history.map((entry, index) => <li key={`${entry.claimVersion}-${entry.createdAt}-${index}`}>
+    <ol className="record-scroll" tabIndex={0} aria-label="Decision history">{history.map((entry, index) => <li key={`${entry.claimVersion}-${entry.createdAt}-${index}`}>
       <div className="decision-history-line"><strong>{decisionLabels[entry.disposition]}</strong><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</time></div>
       <p>{entry.actorLabel ?? "Project reviewer"} · finding version {entry.claimVersion}</p>
       {entry.editedStatement && <blockquote>{entry.editedStatement}</blockquote>}
