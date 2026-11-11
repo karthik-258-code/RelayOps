@@ -6,6 +6,7 @@ _bearer = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]{16,}={0,2}", re.I)
 _assigned_secret = re.compile(r"\b(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret[_-]?key|password|passwd|authorization)\b\s*[:=]\s*[\"']?([^\s,;\"'}]{8,})[\"']?", re.I)
 _email = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
 _phone = re.compile(r"(?<![\w-])(?:\+?\d[\d .()/-]{8,}\d)(?![\w-])")
+_technical_location_terms = {"postgres", "postgresql"}
 
 _analyzer = None
 _anonymizer = None
@@ -45,6 +46,13 @@ def redact_sensitive_content(text: str) -> str:
                 language="en",
                 entities=["PHONE_NUMBER", "EMAIL_ADDRESS", "CREDIT_CARD", "US_SSN", "IBAN_CODE", "IP_ADDRESS", "LOCATION"],
             )
+            findings = [
+                finding for finding in findings
+                if not (
+                    finding.entity_type == "LOCATION"
+                    and redacted[finding.start:finding.end].casefold() in _technical_location_terms
+                )
+            ]
             redacted = _anonymizer.anonymize(
                 text=redacted,
                 analyzer_results=findings,

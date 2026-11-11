@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { buildExtractionBatches, buildExtractorRequest, createExtractionBudget, MAX_EXTRACTION_OPERATION_MS, MAX_EXTRACTOR_BATCH_MS, splitExtractionBatch } from '@/lib/extraction/request';
 import { mergeExtractionResults } from '@/lib/extraction/merge';
+import { matchExtractedClaimsToExistingFindings } from '@/lib/extraction/deduplicate';
 import { reconcileExtractedEntities } from '@/lib/extraction/entities';
 import { createBatchProgressReporter, type ExtractionCompletionSummary, type ExtractionProgressEvent, type ExtractionTerminalEvent } from '@/lib/extraction/progress';
 import { getProjectAccess, jsonError, requireUser } from '@/lib/server/access';
@@ -217,7 +218,24 @@ export async function POST(request: Request, context: { params: Promise<{ projec
     if (error) return jsonError(503, 'PRIVACY_SAVE_FAILED', 'The redacted source hash could not be saved.');
   }
 
-  const claimIds = authorizedClaims.map((claim) => stableUuid(`${projectId}:claim:${claim.topic}`));
+  const existingClaims = await admin.from('claims')
+    .select('id,category,statement,clearance,extraction_run_id')
+    .eq('project_id', projectId);
+  if (existingClaims.error) return jsonError(503, 'DATABASE_UNAVAILABLE', 'Existing findings could not be loaded.');
+  const existingClaimIds = (existingClaims.data ?? []).map((claim) => claim.id);
+  const existingCitationResults = await Promise.all(chunkValues(existingClaimIds, 50).map((ids) => admin.from('citations')
+    .select('claim_id,passage_id,quote')
+    .eq('project_id', projectId)
+    .in('claim_id', ids)));
+  if (existingCitationResults.some((result) => result.error)) return jsonError(503, 'DATABASE_UNAVAILABLE', 'Existing evidence links could not be loaded.');
+  const existingClaimIdByTopic = matchExtractedClaimsToExistingFindings(
+    authorizedClaims,
+    existingClaims.data ?? [],
+    existingCitationResults.flatMap((result) => result.data ?? []),
+  );
+  const storageIdByTopic = (claim: ExtractionResult['claims'][number]) =>
+    existingClaimIdByTopic.get(claim.topic) ?? stableUuid(`${projectId}:claim:${claim.topic}`);
+  const claimIds = authorizedClaims.map(storageIdByTopic);
   const oldClaims = claimIds.length ? await admin.from('claims').select('id,version,statement,status,clearance').eq('project_id', projectId).in('id', claimIds) : { data: [], error: null };
   if (oldClaims.error) return jsonError(503, 'DATABASE_UNAVAILABLE', 'Existing review state could not be loaded.');
   const oldCitationRows = claimIds.length ? await admin.from('citations').select('claim_id,passage_id,quote,relation').eq('project_id', projectId).in('claim_id', claimIds) : { data: [], error: null };
@@ -229,7 +247,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
 
   const extractionRunId = randomUUID();
   for (const claim of authorizedClaims) {
-    const claimId = stableUuid(`${projectId}:claim:${claim.topic}`);
+    const claimId = storageIdByTopic(claim);
     const oldClaim = oldClaims.data?.find((item) => item.id === claimId);
     const newCitationSignature = claim.citations.map((item) => `${item.passage_id}:${item.quote}:${item.relation}`).sort().join('|');
     const oldCitationSignature = (oldCitationRows.data ?? []).filter((item) => item.claim_id === claimId).map((item) => `${item.passage_id}:${item.quote}:${item.relation}`).sort().join('|');
@@ -238,7 +256,8 @@ export async function POST(request: Request, context: { params: Promise<{ projec
       id: claimId, project_id: projectId, title: claim.title, category: claim.category,
       statement: claim.statement, status: claim.status, confidence: claim.confidence,
       clearance: claim.clearance, owner_name: claim.owner_name, due_at: claim.due_at,
-      extraction_run_id: extractionRunId, version: oldClaim ? oldClaim.version + (changed ? 1 : 0) : 1,
+      extraction_run_id: extractionRunId,
+      version: oldClaim ? oldClaim.version + (changed ? 1 : 0) : 1,
     }, { onConflict: 'id' });
     if (claimError) return jsonError(503, 'CLAIM_SAVE_FAILED', 'A validated claim could not be written to PostgreSQL.');
     const rows = claim.citations.map((citation) => ({

@@ -39,6 +39,15 @@ class PrivacyTests(unittest.TestCase):
         self.assertNotIn(fake_token, redacted)
         self.assertIn("[REDACTED_PII]", redacted)
 
+    def test_preserves_postgresql_while_still_redacting_a_real_location_and_email(self):
+        text = "PostgreSQL runs in London. Contact alex@example.com for details."
+
+        redacted = redact_sensitive_content(text)
+
+        self.assertIn("PostgreSQL", redacted)
+        self.assertNotIn("London", redacted)
+        self.assertNotIn("alex@example.com", redacted)
+
 
 class ReconciliationTests(unittest.TestCase):
     def test_conflicting_values_remain_unresolved_with_both_citations(self):
