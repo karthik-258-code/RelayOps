@@ -253,6 +253,22 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .button-quiet:hover:not(:disabled) { background: #f2f4f1; color: var(--ink); }
 .extractor-health-link { border-color: #dce7df; background: #f4f7f4; color: var(--green-dark); text-decoration: none; }
 .extractor-health-link:hover { border-color: #c8d8cd; background: #eaf2ed; color: var(--green-dark); }
+.extractor-health-control { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.extractor-health-status { display: inline-flex; align-items: center; gap: 6px; color: #69756e; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.extractor-health-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #a0aaa4; }
+.extractor-health-control--ready .extractor-health-dot,
+.extractor-health-control--missing_key .extractor-health-dot { background: #27835e; box-shadow: 0 0 0 3px rgb(39 131 94 / 12%); }
+.extractor-health-control--ready .extractor-health-status,
+.extractor-health-control--missing_key .extractor-health-status { color: #216b4d; }
+.extractor-health-control--unreachable .extractor-health-dot { background: #b5473f; box-shadow: 0 0 0 3px rgb(181 71 63 / 12%); }
+.extractor-health-control--unreachable .extractor-health-status { color: #963c36; }
+.extractor-health-control--checking .extractor-health-dot { animation: extractor-health-pulse 1.4s ease-in-out infinite; }
+.extractor-health-help { flex: 1 0 100%; margin: 0; color: #83413a; font-size: 10px; line-height: 1.45; }
+.extractor-health-help--warning { color: #84540f; }
+.extractor-health-recheck { min-height: 32px; padding: 0 5px; border: 0; background: transparent; color: #56675e; cursor: pointer; font-size: 10px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.extractor-health-recheck:hover:not(:disabled) { color: var(--green-dark); }
+.extractor-health-recheck:disabled { cursor: progress; opacity: .55; }
+@keyframes extractor-health-pulse { 50% { opacity: .35; } }
 .decision-summary { font-size: 11px; color: #4e5a55; }
 .decision-summary p { margin: 0 0 8px; }
 .decision-summary blockquote { margin: 0 0 9px; padding: 8px 10px; border: 1px solid #dce8e0; border-radius: 5px; background: #f3f7f4; line-height: 1.5; }

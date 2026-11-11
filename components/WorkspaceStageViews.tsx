@@ -1,6 +1,6 @@
 import type { Claim, ClaimCategory, SourceRecord } from "@/lib/domain/types";
 import type { ExtractionProgressEvent } from "@/lib/extraction/progress";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { StatusBadge } from "./ClaimQueue";
 
@@ -11,6 +11,66 @@ const categoryLabels: Record<ClaimCategory, string> = {
   risk: "Risks",
   "next-action": "Next actions",
 };
+
+type ExtractorHealthState = 'checking' | 'ready' | 'missing_key' | 'unreachable';
+
+function ExtractorHealthControl() {
+  const [healthState, setHealthState] = useState<ExtractorHealthState>('checking');
+  const requestInFlight = useRef(false);
+
+  const checkHealth = useCallback(async () => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setHealthState('checking');
+    try {
+      const response = await fetch('/api/v1/extractor/health', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
+      });
+      const payload = await response.json() as { status?: unknown };
+      if (!response.ok || !['ready', 'missing_key', 'unreachable'].includes(String(payload.status))) {
+        setHealthState('unreachable');
+      } else {
+        setHealthState(payload.status as Exclude<ExtractorHealthState, 'checking'>);
+      }
+    } catch {
+      setHealthState('unreachable');
+    } finally {
+      requestInFlight.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkHealth();
+    let lastReturnCheck = 0;
+    const checkOnReturn = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastReturnCheck < 1_500) return;
+      lastReturnCheck = Date.now();
+      void checkHealth();
+    };
+    window.addEventListener('focus', checkOnReturn);
+    document.addEventListener('visibilitychange', checkOnReturn);
+    return () => {
+      window.removeEventListener('focus', checkOnReturn);
+      document.removeEventListener('visibilitychange', checkOnReturn);
+    };
+  }, [checkHealth]);
+
+  const statusLabel = healthState === 'ready' || healthState === 'missing_key'
+    ? 'Extractor connected'
+    : healthState === 'unreachable' ? 'Extractor not reachable' : 'Checking extractor…';
+
+  return <div className={`extractor-health-control extractor-health-control--${healthState}`}>
+    <span className="extractor-health-status" role="status" aria-live="polite" aria-atomic="true">
+      <span className="extractor-health-dot" aria-hidden="true" />
+      {statusLabel}
+    </span>
+    <a className="button button-quiet extractor-health-link" href="https://relayops-round2-extractor.onrender.com/health" target="_blank" rel="noopener noreferrer" aria-label="Open extractor health check in a new tab">Check extractor health <span aria-hidden="true">↗</span></a>
+    <button className="extractor-health-recheck" type="button" onClick={() => void checkHealth()} disabled={healthState === 'checking'}>Recheck</button>
+    {healthState === 'unreachable' && <p className="extractor-health-help">If this is red, click <strong>Check extractor health</strong> to wake the service. Return here and RelayOps will check again.</p>}
+    {healthState === 'missing_key' && <p className="extractor-health-help extractor-health-help--warning">The extractor is online, but its Nebius key is not configured.</p>}
+  </div>;
+}
 
 const extractionStageTitles: Record<ExtractionProgressEvent['stage'], string> = {
   preparing: 'Preparing the extraction',
@@ -124,7 +184,7 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
       <section className="reconstruction-panel" aria-labelledby="active-risks-title"><div className="reconstruction-panel-heading"><div><span>03 / OPEN CONTEXT</span><h3 id="active-risks-title">Active blockers &amp; risks</h3></div><strong>{blockersAndRisks.length}</strong></div>{renderFindings(blockersAndRisks, "standard", "Blockers and risks findings")}</section>
       <section className="reconstruction-panel" aria-labelledby="next-actions-title"><div className="reconstruction-panel-heading"><div><span>04 / FOLLOW-THROUGH</span><h3 id="next-actions-title">Next actions</h3></div><strong>{nextActions.length}</strong></div>{renderFindings(nextActions, "standard", "Next actions findings")}</section>
     </div>
-    <div className="stage-page-footer"><span>{extractionMode === 'nebius' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}</span><div className="reconstruct-actions">{sources.length > 0 && <><button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Extraction in progress…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'} <span aria-hidden="true">✳</span></button><a className="button button-quiet extractor-health-link" href="https://relayops-round2-extractor.onrender.com/health" target="_blank" rel="noopener noreferrer" aria-label="Check extractor health in a new tab">Check extractor health <span aria-hidden="true">↗</span></a></>}<button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
+    <div className="stage-page-footer"><span>{extractionMode === 'nebius' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Extraction in progress…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'} <span aria-hidden="true">✳</span></button>}<ExtractorHealthControl /><button className="button button-primary" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div>
   </section>;
 }
 
