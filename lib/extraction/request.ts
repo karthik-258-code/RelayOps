@@ -5,7 +5,8 @@ export type ExtractorRequest = {
 };
 
 export const MAX_EXTRACTOR_PASSAGES = 25;
-export const MAX_EXTRACTION_BATCH_CHARACTERS = 30_000;
+export const MAX_EXTRACTOR_PASSAGE_CHARACTERS = 30_000;
+export const MAX_EXTRACTION_BATCH_CHARACTERS = 50_000;
 export const MAX_EXTRACTION_CHARACTERS = 200_000;
 export const EXTRACTION_PERSISTENCE_RESERVE_MS = 60_000;
 export const MAX_EXTRACTION_OPERATION_MS = 240_000;
@@ -31,8 +32,8 @@ export function buildExtractionBatches<T extends { id: string; content: string }
 
   for (const passage of passages) {
     const characters = passage.content.length;
-    if (characters > MAX_EXTRACTION_BATCH_CHARACTERS) {
-      throw new RangeError('A source passage exceeds the extraction character limit.');
+    if (characters > MAX_EXTRACTOR_PASSAGE_CHARACTERS) {
+      throw new RangeError('A source passage exceeds the extractor passage character limit.');
     }
     if (current.length && (current.length >= MAX_EXTRACTOR_PASSAGES || currentCharacters + characters > MAX_EXTRACTION_BATCH_CHARACTERS)) {
       batches.push(current);

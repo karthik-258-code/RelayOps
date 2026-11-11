@@ -71,18 +71,25 @@ async function extractBatch(
     return { error: jsonError(504, 'EXTRACTION_DEADLINE_EXCEEDED', 'The extraction reached its request time limit. Saved sources and completed findings remain available; narrow the source set and retry.') };
   }
   const batchNumber = batchProgress.snapshot().completed + 1;
-  batchProgress.start(`Sending extraction batch ${batchNumber} of ${batchProgress.snapshot().total} to Nebius.`);
+  const batchTotal = batchProgress.snapshot().total;
+  batchProgress.start(`Sending extraction batch ${batchNumber} of ${batchTotal} to Nebius.`);
+  const timeoutSignal = AbortSignal.timeout(requestTimeoutMs);
   let response: Response;
   try {
     response = await fetch(`${extractorUrl.replace(/\/$/, '')}/extract`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-RelayOps-Extractor-Key': sharedToken },
       body: JSON.stringify(buildExtractorRequest(projectId, clearance, batch.map((passage) => passage.id))),
-      signal: AbortSignal.timeout(requestTimeoutMs),
+      signal: timeoutSignal,
       cache: 'no-store',
     });
   } catch {
-    return { error: jsonError(502, 'EXTRACTOR_UNAVAILABLE', 'The extractor stopped responding. Source evidence is saved, but this revision needs review before handover.') };
+    const timedOut = timeoutSignal.aborted;
+    const code = timedOut ? 'EXTRACTION_BATCH_TIMEOUT' : 'EXTRACTOR_UNAVAILABLE';
+    const message = timedOut
+      ? `Nebius did not finish batch ${batchNumber} of ${batchTotal} within the available run time. No findings from this attempt were saved; source evidence and earlier findings remain available. Reduce the source set and retry.`
+      : `The extractor connection ended during batch ${batchNumber} of ${batchTotal}. No findings from this attempt were saved; source evidence and earlier findings remain available. Check extractor health before retrying.`;
+    return { error: jsonError(timedOut ? 504 : 502, code, message) };
   }
 
   if (response.status === 504) {

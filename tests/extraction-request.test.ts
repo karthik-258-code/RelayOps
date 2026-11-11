@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildExtractionBatches, buildExtractorRequest, createExtractionBudget, EXTRACTION_PERSISTENCE_RESERVE_MS, EXTRACTION_ROUTE_MAX_DURATION_MS, MAX_EXTRACTION_BATCH_CHARACTERS, MAX_EXTRACTION_OPERATION_MS, MAX_EXTRACTOR_BATCH_MS, MAX_EXTRACTOR_PASSAGES, splitExtractionBatch } from '../lib/extraction/request';
+import { buildExtractionBatches, buildExtractorRequest, createExtractionBudget, EXTRACTION_PERSISTENCE_RESERVE_MS, EXTRACTION_ROUTE_MAX_DURATION_MS, MAX_EXTRACTION_BATCH_CHARACTERS, MAX_EXTRACTION_OPERATION_MS, MAX_EXTRACTOR_BATCH_MS, MAX_EXTRACTOR_PASSAGES, MAX_EXTRACTOR_PASSAGE_CHARACTERS, splitExtractionBatch } from '../lib/extraction/request';
 import { chunkValues } from '../lib/utils/chunk-values';
 
 test('extractor request sends scoped passage IDs without source content', () => {
@@ -26,8 +26,25 @@ test('splits large projects into bounded extraction batches without dropping pas
   }
 });
 
-test('rejects a passage that cannot fit in a single extraction batch', () => {
-  assert.throws(() => buildExtractionBatches([{ id: 'too-large', content: 'x'.repeat(MAX_EXTRACTION_BATCH_CHARACTERS + 1) }]), /extraction character limit/);
+test('keeps the 108-passage, 236k-character project payload within five Nebius batches', () => {
+  const passages = Array.from({ length: 108 }, (_, index) => ({
+    id: `project-test-3-passage-${index}`,
+    content: 'x'.repeat(index < 57 ? 2_189 : 2_188),
+  }));
+
+  const batches = buildExtractionBatches(passages);
+
+  assert.equal(batches.length, 5);
+  assert.equal(batches.flat().length, 108);
+  for (const batch of batches) {
+    assert.ok(batch.length <= MAX_EXTRACTOR_PASSAGES);
+    assert.ok(batch.reduce((total, passage) => total + passage.content.length, 0) <= MAX_EXTRACTION_BATCH_CHARACTERS);
+    assert.ok(batch.every((passage) => passage.content.length <= MAX_EXTRACTOR_PASSAGE_CHARACTERS));
+  }
+});
+
+test('rejects a passage above the extractor schema limit', () => {
+  assert.throws(() => buildExtractionBatches([{ id: 'too-large', content: 'x'.repeat(MAX_EXTRACTOR_PASSAGE_CHARACTERS + 1) }]), /passage character limit/);
 });
 
 test('splits a timed-out batch into two complete smaller requests', () => {
