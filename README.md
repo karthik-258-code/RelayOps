@@ -44,11 +44,11 @@ Create a Token Factory API key for the project that owns your inference credits 
 ```dotenv
 NEBIUS_API_KEY=your-token-factory-key
 NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1
-NEBIUS_MODEL=Qwen/Qwen3.5-397B-A17B
+NEBIUS_MODEL=Qwen/Qwen3-235B-A22B-Instruct-2507
 NEBIUS_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B
 ```
 
-Restart both Next.js and the extractor, then open **Reconstruct** and choose **Run Nebius extraction**. The default chat model is `Qwen/Qwen3.5-397B-A17B`; embeddings use `Qwen/Qwen3-Embedding-8B` truncated to the database's 768 dimensions. Override `NEBIUS_MODEL`, `NEBIUS_EMBEDDING_MODEL`, and `NEBIUS_BASE_URL` if your Token Factory project exposes different models or an account-specific endpoint. The app uses Nebius' OpenAI-compatible chat and embeddings API. A missing or failed key does not create pretend AI results: deterministic imported facts remain available, the UI explains setup, and the model cannot approve a handover.
+Restart both Next.js and the extractor, then open **Reconstruct** and choose **Run Nebius extraction**. The default chat model is `Qwen/Qwen3-235B-A22B-Instruct-2507`; embeddings use `Qwen/Qwen3-Embedding-8B` truncated to the database's 768 dimensions. Override `NEBIUS_MODEL`, `NEBIUS_EMBEDDING_MODEL`, and `NEBIUS_BASE_URL` if your Token Factory project exposes different models or an account-specific endpoint. The app uses Nebius' OpenAI-compatible chat and embeddings API. A missing or failed key does not create pretend AI results: deterministic imported facts remain available, the UI explains setup, and the model cannot approve a handover.
 
 ## Deploy a judge demo on Render
 

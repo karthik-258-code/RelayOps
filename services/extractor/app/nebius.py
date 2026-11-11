@@ -4,7 +4,7 @@ from typing import Any
 from openai import OpenAI
 
 BASE_URL = "https://api.tokenfactory.nebius.com/v1"
-CHAT_MODEL = os.getenv("NEBIUS_MODEL", "Qwen/Qwen3.5-397B-A17B").strip()
+CHAT_MODEL = os.getenv("NEBIUS_MODEL", "Qwen/Qwen3-235B-A22B-Instruct-2507").strip()
 EMBEDDING_MODEL = os.getenv("NEBIUS_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B").strip()
 EMBEDDING_DIMENSIONS = 768
 
