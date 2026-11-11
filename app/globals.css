@@ -548,20 +548,22 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .trail-note { max-width: 70ch; margin: 13px 0 0; color: #69746e; font-size: 10px; line-height: 1.55; }
 .stage-page-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 27px; border-top: 1px solid #e8ebe7; background: #fafbf9; color: #69756e; font-size: 10px; }
 .stage-page-footer .button { min-height: 37px; font-size: 10px; }
-.reconstruct-page .reconstruct-footer { display: grid; grid-template-columns: minmax(230px, 320px) minmax(0, 1fr); align-items: center; gap: 12px 24px; }
-.reconstruct-page .reconstruct-footer > span { min-width: 0; max-width: 34ch; }
-.reconstruct-page .reconstruct-actions { min-width: 0; width: 100%; display: grid; grid-template-columns: max-content max-content; grid-template-areas: "run continue" "health health"; justify-content: start; align-items: center; gap: 9px 14px; }
+.reconstruct-page .reconstruct-footer { display: block; }
+.reconstruct-page .reconstruct-footer-inner { display: grid; grid-template-columns: minmax(230px, 300px) minmax(0, 560px); align-items: center; gap: 12px 38px; width: fit-content; max-width: min(100%, 1160px); margin-inline: auto; }
+.reconstruct-page .reconstruct-footer-inner > span { min-width: 0; max-width: 34ch; }
+.reconstruct-page .reconstruct-actions { min-width: 0; width: 100%; display: grid; grid-template-columns: max-content max-content; grid-template-areas: "run continue" "health health"; justify-content: space-between; align-items: center; gap: 9px 14px; }
 .reconstruct-page .reconstruct-run-button { grid-area: run; }
 .reconstruct-page .reconstruct-continue-button { grid-area: continue; }
 .reconstruct-page .extractor-health-control { grid-area: health; }
 @media (max-width: 1100px) {
-  .reconstruct-page .reconstruct-footer { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .reconstruct-page .reconstruct-footer > span { max-width: 68ch; }
+  .reconstruct-page .reconstruct-footer-inner { width: min(100%, 760px); grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .reconstruct-page .reconstruct-footer-inner > span { max-width: 68ch; }
   .reconstruct-page .reconstruct-actions { justify-content: start; }
 }
 @media (max-width: 700px) {
-  .reconstruct-page .reconstruct-footer { align-items: stretch; padding: 14px 19px; }
-  .reconstruct-page .reconstruct-footer > span { max-width: none; }
+  .reconstruct-page .reconstruct-footer { padding: 14px 19px; }
+  .reconstruct-page .reconstruct-footer-inner { width: 100%; }
+  .reconstruct-page .reconstruct-footer-inner > span { max-width: none; }
   .reconstruct-page .reconstruct-actions { grid-template-columns: minmax(0, 1fr); grid-template-areas: "run" "continue" "health"; justify-content: stretch; gap: 8px; }
   .reconstruct-page .reconstruct-actions > .button { width: 100%; }
 }

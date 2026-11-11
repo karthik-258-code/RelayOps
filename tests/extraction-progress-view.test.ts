@@ -83,7 +83,7 @@ test('reconstruction footer keeps the note, actions, and extractor status in exp
     extracting: false, extractionMode: 'nebius',
   }));
 
-  assert.match(html, /class="stage-page-footer reconstruct-footer"/);
+  assert.match(html, /class="stage-page-footer reconstruct-footer"><div class="reconstruct-footer-inner"><span/);
   assert.match(html, /class="reconstruct-actions"[^>]*>[\s\S]*class="button button-secondary reconstruct-run-button"[\s\S]*class="extractor-health-control[^>]*>[\s\S]*class="button button-primary reconstruct-continue-button"/);
   assert.match(html, /Model output stays unapproved until a human reviews it\./);
 });
