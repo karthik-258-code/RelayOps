@@ -15,8 +15,8 @@ class NebiusProviderTests(unittest.TestCase):
         openai_client.assert_called_once_with(
             api_key="test-nebius-key",
             base_url="https://api.tokenfactory.nebius.com/v1",
-            timeout=240,
-            max_retries=2,
+            timeout=85,
+            max_retries=0,
         )
 
     def test_client_fails_closed_when_nebius_key_is_missing(self):
@@ -26,7 +26,7 @@ class NebiusProviderTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "NEBIUS_API_KEY"):
                 create_client()
 
-    def test_chat_generation_retries_transient_provider_errors(self):
+    def test_chat_generation_makes_one_paid_request_on_transient_provider_error(self):
         import httpx
         from openai import OpenAI
         from app.nebius import generate_json
@@ -36,7 +36,7 @@ class NebiusProviderTests(unittest.TestCase):
         def respond(request):
             nonlocal attempts
             attempts += 1
-            if attempts < 3:
+            if attempts == 1:
                 return httpx.Response(503, headers={"retry-after-ms": "0"}, json={"error": "temporary outage"}, request=request)
             return httpx.Response(200, json={
                 "id": "test-completion", "object": "chat.completion", "created": 1, "model": "test/model",
@@ -46,15 +46,15 @@ class NebiusProviderTests(unittest.TestCase):
 
         client = OpenAI(
             api_key="test-nebius-key", base_url="https://api.tokenfactory.nebius.com/v1",
-            max_retries=2, http_client=httpx.Client(transport=httpx.MockTransport(respond)),
+            max_retries=0, http_client=httpx.Client(transport=httpx.MockTransport(respond)),
         )
         try:
-            content = generate_json(client, "Extract facts", model="test/model")
+            with self.assertRaises(Exception):
+                generate_json(client, "Extract facts", model="test/model")
         finally:
             client.close()
 
-        self.assertEqual(content, '{"facts": []}')
-        self.assertEqual(attempts, 3)
+        self.assertEqual(attempts, 1)
 
     def test_chat_generation_requests_json_and_returns_model_content(self):
         from app.nebius import generate_json

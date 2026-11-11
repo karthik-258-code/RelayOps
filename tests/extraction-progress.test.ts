@@ -95,6 +95,15 @@ test('rejects malformed SSE data and a stream with no terminal event', async () 
   );
 });
 
+test('rejects events delivered after the terminal event', async () => {
+  const response = new Response([
+    `data: ${JSON.stringify({ type: 'completed', result: { message: 'Done.', notices: [], findings: 0, rejectedFacts: 0, embeddingCount: 0, model: 'test' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'progress', stage: 'saving_findings', message: 'late event' })}\n\n`,
+  ].join(''), { headers: { 'Content-Type': 'text/event-stream' } });
+
+  await assert.rejects(consumeExtractionEventStream(response, () => {}), /progress after its terminal event/);
+});
+
 test('timeout subdivision revises total before child batches complete', () => {
   const events: ExtractionProgressEvent[] = [];
   const batches = createBatchProgressReporter(2, (event) => events.push(event));

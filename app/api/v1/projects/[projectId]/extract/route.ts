@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { buildExtractionBatches, buildExtractorRequest, EXTRACTOR_REQUEST_TIMEOUT_MS, splitExtractionBatch } from '@/lib/extraction/request';
+import { buildExtractionBatches, buildExtractorRequest, createExtractionBudget, MAX_EXTRACTION_OPERATION_MS, MAX_EXTRACTOR_BATCH_MS, splitExtractionBatch } from '@/lib/extraction/request';
 import { mergeExtractionResults } from '@/lib/extraction/merge';
 import { reconcileExtractedEntities } from '@/lib/extraction/entities';
 import { createBatchProgressReporter, type ExtractionCompletionSummary, type ExtractionProgressEvent, type ExtractionTerminalEvent } from '@/lib/extraction/progress';
@@ -54,6 +54,7 @@ function sha256(value: string) { return createHash('sha256').update(value).diges
 type ExtractionResult = z.infer<typeof resultSchema>;
 type BatchAttempt = { results: ExtractionResult[]; error?: never } | { results?: never; error: Response };
 type BatchProgressReporter = ReturnType<typeof createBatchProgressReporter>;
+type ExtractionBudget = ReturnType<typeof createExtractionBudget>;
 
 async function extractBatch(
   batch: Array<{ id: string }>,
@@ -62,7 +63,12 @@ async function extractBatch(
   extractorUrl: string,
   sharedToken: string,
   batchProgress: BatchProgressReporter,
+  extractionBudget: ExtractionBudget,
 ): Promise<BatchAttempt> {
+  const requestTimeoutMs = extractionBudget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS);
+  if (requestTimeoutMs === null) {
+    return { error: jsonError(504, 'EXTRACTION_DEADLINE_EXCEEDED', 'The extraction reached its request time limit. Saved sources and completed findings remain available; narrow the source set and retry.') };
+  }
   const batchNumber = batchProgress.snapshot().completed + 1;
   batchProgress.start(`Sending extraction batch ${batchNumber} of ${batchProgress.snapshot().total} to Nebius.`);
   let response: Response;
@@ -71,7 +77,7 @@ async function extractBatch(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-RelayOps-Extractor-Key': sharedToken },
       body: JSON.stringify(buildExtractorRequest(projectId, clearance, batch.map((passage) => passage.id))),
-      signal: AbortSignal.timeout(EXTRACTOR_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(requestTimeoutMs),
       cache: 'no-store',
     });
   } catch {
@@ -85,7 +91,7 @@ async function extractBatch(
       batchProgress.split(smallerBatches.length, `A slow batch is being split into ${smallerBatches.length} smaller requests.`);
       const results: ExtractionResult[] = [];
       for (const smallerBatch of smallerBatches) {
-        const attempt = await extractBatch(smallerBatch, projectId, clearance, extractorUrl, sharedToken, batchProgress);
+        const attempt = await extractBatch(smallerBatch, projectId, clearance, extractorUrl, sharedToken, batchProgress, extractionBudget);
         if (attempt.error) return attempt;
         results.push(...attempt.results);
       }
@@ -127,6 +133,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
   if (!extractorUrl || !sharedToken) return jsonError(503, 'EXTRACTOR_NOT_CONFIGURED', 'Local extractor settings are missing. Run scripts/setup-local-env.ps1.');
 
   const performExtraction = async (report?: (event: ExtractionProgressEvent) => void): Promise<Response> => {
+  const extractionBudget = createExtractionBudget(MAX_EXTRACTION_OPERATION_MS);
   const emit = report ?? (() => {});
   emit({ type: 'progress', stage: 'preparing', message: 'Preparing imported evidence for extraction.' });
   emit({ type: 'progress', stage: 'loading_evidence', message: 'Loading saved source passages for this project.' });
@@ -136,16 +143,17 @@ export async function POST(request: Request, context: { params: Promise<{ projec
     .eq('project_id', projectId).lte('clearance', access.clearance).contains('metadata', { relayops_import: true });
   if (sourceError) return jsonError(503, 'DATABASE_UNAVAILABLE', 'Imported evidence could not be loaded for extraction.');
   if (!sources?.length) return jsonError(409, 'NO_IMPORTED_SOURCES', 'Connect or upload project records before running extraction.');
+  emit({ type: 'progress', stage: 'checking_extractor', message: 'Checking Nebius extractor readiness.' });
+  const healthUrl = `${extractorUrl.replace(/\/$/, '')}/health`;
+  const healthPromise = waitForExtractorHealth(
+    () => fetch(healthUrl, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }),
+  );
   let { data: passages, error: passageError } = await admin.from('source_passages')
     .select('id,source_id,passage_index,content,clearance')
     .eq('project_id', projectId).in('source_id', sources.map((source) => source.id)).lte('clearance', access.clearance).order('passage_index');
   if (passageError || !passages?.length) return jsonError(409, 'NO_STORED_PASSAGES', 'This project has no stored source passages to extract.');
 
-  emit({ type: 'progress', stage: 'checking_extractor', message: 'Checking Nebius extractor readiness.' });
-  const healthUrl = `${extractorUrl.replace(/\/$/, '')}/health`;
-  const healthResponse = await waitForExtractorHealth(
-    () => fetch(healthUrl, { cache: 'no-store', signal: AbortSignal.timeout(5_000) }),
-  );
+  const healthResponse = await healthPromise;
   if (!healthResponse) return jsonError(503, 'EXTRACTOR_OFFLINE', 'The extractor did not become healthy after several retries. Check its Render status and logs, then retry.');
   const health = await healthResponse.json();
   if (!health.model_configured) return jsonError(503, 'NEBIUS_NOT_CONFIGURED', 'Configure NEBIUS_API_KEY on the extractor service, then restart or redeploy it.');
@@ -173,7 +181,7 @@ export async function POST(request: Request, context: { params: Promise<{ projec
   const batchResults: ExtractionResult[] = [];
   const batchProgress = createBatchProgressReporter(extractionBatches.length, emit);
   for (const batch of extractionBatches) {
-    const attempt = await extractBatch(batch, projectId, access.clearance, extractorUrl, sharedToken, batchProgress);
+    const attempt = await extractBatch(batch, projectId, access.clearance, extractorUrl, sharedToken, batchProgress, extractionBudget);
     if (attempt.error) return attempt.error;
     batchResults.push(...attempt.results);
   }

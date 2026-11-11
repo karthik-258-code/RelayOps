@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildExtractionBatches, buildExtractorRequest, EXTRACTOR_REQUEST_TIMEOUT_MS, MAX_EXTRACTION_BATCH_CHARACTERS, MAX_EXTRACTOR_PASSAGES, splitExtractionBatch } from '../lib/extraction/request';
+import { buildExtractionBatches, buildExtractorRequest, createExtractionBudget, EXTRACTION_PERSISTENCE_RESERVE_MS, EXTRACTION_ROUTE_MAX_DURATION_MS, MAX_EXTRACTION_BATCH_CHARACTERS, MAX_EXTRACTION_OPERATION_MS, MAX_EXTRACTOR_BATCH_MS, MAX_EXTRACTOR_PASSAGES, splitExtractionBatch } from '../lib/extraction/request';
 import { chunkValues } from '../lib/utils/chunk-values';
 
 test('extractor request sends scoped passage IDs without source content', () => {
@@ -42,9 +42,17 @@ test('does not split a single passage after extraction timeout', () => {
   assert.equal(splitExtractionBatch(['passage-0']), null);
 });
 
-test('leaves time for the extractor to report its provider timeout before the route expires', () => {
-  assert.ok(EXTRACTOR_REQUEST_TIMEOUT_MS > 240_000);
-  assert.ok(EXTRACTOR_REQUEST_TIMEOUT_MS < 300_000);
+test('bounds sequential batches by one shared operation deadline', () => {
+  let now = 0;
+  const budget = createExtractionBudget(MAX_EXTRACTION_OPERATION_MS, () => now);
+  assert.equal(MAX_EXTRACTION_OPERATION_MS + EXTRACTION_PERSISTENCE_RESERVE_MS, EXTRACTION_ROUTE_MAX_DURATION_MS);
+  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), MAX_EXTRACTOR_BATCH_MS);
+  now = 200_000;
+  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), 40_000);
+  now = 230_000;
+  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), 10_000);
+  now = MAX_EXTRACTION_OPERATION_MS;
+  assert.equal(budget.nextRequestTimeoutMs(MAX_EXTRACTOR_BATCH_MS), null);
 });
 
 test('chunks database filter values so large PostgREST URIs stay bounded', () => {

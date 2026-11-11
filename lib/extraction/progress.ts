@@ -133,6 +133,7 @@ export async function consumeExtractionEventStream(
   function handleFrame(frame: string) {
     const data = frame.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trimStart()).join('\n');
     if (!data) return;
+    if (terminal) throw new Error('The extraction service sent progress after its terminal event.');
     let event: unknown;
     try { event = JSON.parse(data); }
     catch { throw new Error('The extraction service sent an invalid progress event.'); }

@@ -4,7 +4,7 @@ from typing import Any
 from openai import OpenAI
 
 BASE_URL = "https://api.tokenfactory.nebius.com/v1"
-CHAT_MODEL = os.getenv("NEBIUS_MODEL", "Qwen/Qwen3-30B-A3B-Instruct-2507").strip()
+CHAT_MODEL = os.getenv("NEBIUS_MODEL", "Qwen/Qwen3.5-397B-A17B").strip()
 EMBEDDING_MODEL = os.getenv("NEBIUS_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B").strip()
 EMBEDDING_DIMENSIONS = 768
 
@@ -22,9 +22,7 @@ def create_client() -> OpenAI:
     if not api_key:
         raise RuntimeError("NEBIUS_API_KEY is not configured")
     base_url = os.getenv("NEBIUS_BASE_URL", BASE_URL).strip().rstrip("/")
-    # Recover from short provider/network hiccups automatically. The SDK retry
-    # policy is bounded (two retries) and applies to transient HTTP failures.
-    return OpenAI(api_key=api_key, base_url=base_url, timeout=240, max_retries=2)
+    return OpenAI(api_key=api_key, base_url=base_url, timeout=85, max_retries=0)
 
 
 def generate_json(client: Any, prompt: str, *, model: str = CHAT_MODEL) -> str:

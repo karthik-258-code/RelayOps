@@ -7,7 +7,22 @@ export type ExtractorRequest = {
 export const MAX_EXTRACTOR_PASSAGES = 25;
 export const MAX_EXTRACTION_BATCH_CHARACTERS = 30_000;
 export const MAX_EXTRACTION_CHARACTERS = 200_000;
-export const EXTRACTOR_REQUEST_TIMEOUT_MS = 270_000;
+export const EXTRACTION_PERSISTENCE_RESERVE_MS = 60_000;
+export const MAX_EXTRACTION_OPERATION_MS = 240_000;
+export const MAX_EXTRACTOR_BATCH_MS = 210_000;
+export const EXTRACTION_ROUTE_MAX_DURATION_MS = 300_000;
+
+export function createExtractionBudget(totalMs: number, now: () => number = Date.now) {
+  if (!Number.isFinite(totalMs) || totalMs <= 0) throw new RangeError('Extraction budget must be positive.');
+  const deadline = now() + totalMs;
+  return {
+    nextRequestTimeoutMs(maxRequestMs: number) {
+      if (!Number.isFinite(maxRequestMs) || maxRequestMs <= 0) throw new RangeError('Request budget must be positive.');
+      const remaining = Math.floor(deadline - now());
+      return remaining > 0 ? Math.min(maxRequestMs, remaining) : null;
+    },
+  };
+}
 
 export function buildExtractionBatches<T extends { id: string; content: string }>(passages: T[]): T[][] {
   const batches: T[][] = [];
