@@ -26,22 +26,42 @@ export function ExtractorHealthView({ healthState, onRecheck, checking = false }
   onRecheck: () => void;
   checking?: boolean;
 }) {
-  const statusLabel = healthState === 'ready' || healthState === 'missing_key'
-    ? 'Extractor connected'
-    : healthState === 'unreachable' ? 'Extractor not reachable' : 'Checking extractor…';
+  const sleeping = healthState === 'unreachable';
+  const checkingStatus = healthState === 'checking';
+  const missingKey = healthState === 'missing_key';
+  const appearance = sleeping ? 'asleep' : checkingStatus ? 'checking' : 'awake';
+  const statusLabel = sleeping
+    ? 'Extractor asleep'
+    : checkingStatus
+      ? 'Checking extractor…'
+      : missingKey
+        ? 'Extractor online'
+        : 'Extractor awake';
+  const healthUrl = 'https://relayops-round2-extractor.onrender.com/health';
 
-  return <div className={`extractor-health-control extractor-health-control--${healthState}`}>
-    <div className="extractor-health-row">
-      <span className="extractor-health-status" role="status" aria-live="polite" aria-atomic="true">
-        <span className="extractor-health-dot" aria-hidden="true" />
-        {statusLabel}
+  return <div className={`extractor-health extractor-health--${appearance}${missingKey ? ' extractor-health--missing-key' : ''}`}>
+    {sleeping ? (
+      <a className="extractor-pill extractor-pill--action" href={healthUrl} target="_blank" rel="noopener noreferrer" aria-label="Extractor asleep. Open the health check in a new tab to wake it.">
+        <span className="extractor-dot" aria-hidden="true" />
+        <span className="extractor-pill-text" role="status" aria-live="polite" aria-atomic="true">
+          <strong>{statusLabel}</strong>
+          <small>Click to wake it up</small>
+        </span>
+        <span className="extractor-pill-cta" aria-hidden="true">Wake ↗</span>
+      </a>
+    ) : (
+      <span className="extractor-pill" role="status" aria-live="polite" aria-atomic="true">
+        <span className="extractor-dot" aria-hidden="true" />
+        <span className="extractor-pill-text">
+          <strong>{statusLabel}</strong>
+          {missingKey && <small>Nebius key not configured</small>}
+        </span>
       </span>
-      <a className="button button-quiet extractor-health-link" href="https://relayops-round2-extractor.onrender.com/health" target="_blank" rel="noopener noreferrer" aria-label="Open extractor health check in a new tab to wake or inspect the service">Open health check <span aria-hidden="true">↗</span></a>
-      <button className="extractor-health-recheck" type="button" onClick={onRecheck} disabled={checking}>Recheck</button>
-    </div>
-    <p className={`extractor-health-help${healthState === 'unreachable' ? ' extractor-health-help--error' : healthState === 'missing_key' ? ' extractor-health-help--warning' : ''}`}>
-      {extractorHealthMessage(healthState)}
-    </p>
+    )}
+
+    <button className="extractor-recheck" type="button" onClick={onRecheck} disabled={checking} title="Recheck extractor status" aria-label="Recheck extractor status">
+      <span aria-hidden="true">↻</span>
+    </button>
   </div>;
 }
 
@@ -202,7 +222,30 @@ export function ReconstructView({ claims, sources, onContinue, onExtract, onOpen
       <section className="reconstruction-panel" aria-labelledby="active-risks-title"><div className="reconstruction-panel-heading"><div><span>03 / OPEN CONTEXT</span><h3 id="active-risks-title">Active blockers &amp; risks</h3></div><strong>{blockersAndRisks.length}</strong></div>{renderFindings(blockersAndRisks, "standard", "Blockers and risks findings")}</section>
       <section className="reconstruction-panel" aria-labelledby="next-actions-title"><div className="reconstruction-panel-heading"><div><span>04 / FOLLOW-THROUGH</span><h3 id="next-actions-title">Next actions</h3></div><strong>{nextActions.length}</strong></div>{renderFindings(nextActions, "standard", "Next actions findings")}</section>
     </div>
-    <div className="stage-page-footer reconstruct-footer"><div className="reconstruct-footer-inner"><span>{extractionMode === 'nebius' ? 'Model output stays unapproved until a human reviews it.' : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}</span><div className="reconstruct-actions">{sources.length > 0 && <button className="button button-secondary reconstruct-run-button" type="button" onClick={onExtract} disabled={extracting}>{extracting ? 'Extraction in progress…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'} <span aria-hidden="true">✳</span></button>}<ExtractorHealthControl /><button className="button button-primary reconstruct-continue-button" type="button" onClick={onContinue}>Check conflicts and gaps <span aria-hidden="true">→</span></button></div></div></div>
+    <div className="stage-page-footer reconstruct-footer">
+      <div className="reconstruct-footer-inner">
+        <p className="reconstruct-footer-note">
+          {extractionMode === 'nebius'
+            ? 'Model output stays unapproved until a human reviews it.'
+            : 'Structured checks are available now; Nebius extraction requires a configured Token Factory key.'}
+        </p>
+
+        <div className="reconstruct-actions">
+          <ExtractorHealthControl />
+
+          {sources.length > 0 && (
+            <button className="button button-secondary reconstruct-run-button" type="button" onClick={onExtract} disabled={extracting}>
+              {extracting ? 'Extraction in progress…' : extractionMode === 'nebius' ? 'Run Nebius again' : 'Run Nebius extraction'}
+              <span aria-hidden="true">✳</span>
+            </button>
+          )}
+
+          <button className="button button-primary reconstruct-continue-button" type="button" onClick={onContinue}>
+            Check conflicts and gaps <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </section>;
 }
 

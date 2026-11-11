@@ -62,17 +62,19 @@ test('keeps health guidance present through checking, ready, offline, and missin
   assert.equal(extractorHealthMessage('missing_key'), 'Extractor is online, but its Nebius key is not configured.');
 
   const html = renderProgress({ type: 'progress', stage: 'preparing', message: 'Preparing.' });
-  assert.match(html, /class="extractor-health-help"/);
-  assert.match(html, /Checking extractor connection/);
+  assert.match(html, /class="extractor-health extractor-health--checking"/);
+  assert.match(html, /Checking extractor…/);
 
   const offline = renderToStaticMarkup(createElement(ExtractorHealthView, {
     healthState: 'unreachable', onRecheck() {},
   }));
-  assert.match(offline, /Extractor not reachable/);
-  assert.match(offline, /Open health check/);
-  assert.match(offline, /sleeping or unreachable/);
+  assert.match(offline, /class="extractor-health extractor-health--asleep"/);
+  assert.match(offline, /Extractor asleep/);
+  assert.match(offline, /Click to wake it up/);
+  assert.match(offline, /Wake ↗/);
+  assert.match(offline, /target="_blank"/);
   assert.match(offline, /Recheck/);
-  assert.match(offline, /extractor-health-help--error/);
+  assert.match(offline, /aria-label="Recheck extractor status"/);
 });
 
 test('reconstruction footer keeps the note, actions, and extractor status in explicit regions', () => {
@@ -83,7 +85,7 @@ test('reconstruction footer keeps the note, actions, and extractor status in exp
     extracting: false, extractionMode: 'nebius',
   }));
 
-  assert.match(html, /class="stage-page-footer reconstruct-footer"><div class="reconstruct-footer-inner"><span/);
-  assert.match(html, /class="reconstruct-actions"[^>]*>[\s\S]*class="button button-secondary reconstruct-run-button"[\s\S]*class="extractor-health-control[^>]*>[\s\S]*class="button button-primary reconstruct-continue-button"/);
+  assert.match(html, /class="stage-page-footer reconstruct-footer"><div class="reconstruct-footer-inner"><p class="reconstruct-footer-note"/);
+  assert.match(html, /class="reconstruct-actions"[^>]*>[\s\S]*class="extractor-health extractor-health--checking"[\s\S]*class="button button-secondary reconstruct-run-button"[\s\S]*class="button button-primary reconstruct-continue-button"/);
   assert.match(html, /Model output stays unapproved until a human reviews it\./);
 });
